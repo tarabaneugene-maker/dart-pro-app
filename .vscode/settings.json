@@ -1,0 +1,17 @@
+{
+  "dart.debugExternalLibraries": false,
+  "dart.debugSdkLibraries": false,
+  "dart.flutterRunAdditionalArgs": [
+    "--web-port=8080",
+    "--web-hostname=localhost"
+  ],
+  "dart.lineLength": 80,
+  "dart.previewFlutterUiGuides": true,
+  "dart.showInspectorNotificationsForWidgetErrors": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000
+}
