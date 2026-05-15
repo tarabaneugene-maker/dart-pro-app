@@ -31,13 +31,15 @@ class GameServer {
   static const _timeoutCheckInterval = Duration(seconds: 30);
   static const _legsToWin = 3;
 
-  Future<void> start({int port = 8080, String dbPath = 'dart_pro.db'}) async {
+  Future<void> start({int? port, String dbPath = 'dart_pro.db'}) async {
+    // Railway передаёт порт через переменную окружения PORT
+    final actualPort = port ?? int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;
     _db.init(dbPath);
     _auth = AuthHandler(_db);
     _rooms = GameRoomManager();
 
-    final server = await HttpServer.bind(InternetAddress.anyIPv4, port);
-    print('🚀 Dart Pro Server запущен на порту $port');
+    final server = await HttpServer.bind(InternetAddress.anyIPv4, actualPort);
+    print('🚀 Dart Pro Server запущен на порту $actualPort');
 
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
       _checkHeartbeats();
