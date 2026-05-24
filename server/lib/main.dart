@@ -173,9 +173,9 @@ class GameServer {
     }
   }
 
-  /// Раздаёт статику Flutter Web из папки ../build/web
+  /// Раздаёт статику Flutter Web из папки build/web
   void _serveStatic(HttpRequest request) {
-    final buildPath = '../build/web';
+    final buildPath = 'build/web';
     String filePath;
 
     if (request.uri.path == '/' || request.uri.path.isEmpty) {
