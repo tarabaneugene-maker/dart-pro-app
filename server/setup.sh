@@ -85,7 +85,7 @@ echo "  Server started on port 8080"
 # --- 6. Configure Caddy reverse proxy ---
 echo "[6/6] Configuring Caddy..."
 cat > /etc/caddy/Caddyfile << 'CADDY'
-176.109.111.87.nip.io {
+176.123.164.149.nip.io {
     reverse_proxy localhost:8080
 }
 CADDY
@@ -96,5 +96,5 @@ systemctl restart caddy
 echo ""
 echo "============================================"
 echo " Setup complete!"
-echo " Server: http://176.109.111.87.nip.io"
+echo " Server: http://176.123.164.149.nip.io"
 echo "============================================"
