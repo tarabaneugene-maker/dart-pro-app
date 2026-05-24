@@ -9,6 +9,7 @@ import 'game/local_game_menu_page.dart';
 import 'training/training_page.dart';
 
 // Онлайн модули
+import 'online/services/backend_service.dart';
 import 'online/services/websocket_backend.dart';
 import 'online/auth/login_page.dart';
 import 'online/server_url.dart';
