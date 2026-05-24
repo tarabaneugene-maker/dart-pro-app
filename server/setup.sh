@@ -15,6 +15,7 @@ echo "[1/6] Adding SSH key..."
 mkdir -p ~/.ssh
 cat >> ~/.ssh/authorized_keys << 'SSHKEY'
 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDFt/wpYeMvYbRU0PekpCta4zJCaJBZGRD/f0jV9wY5ujwn1tx20b0i1eZQFzsWAV+tPh+1CHk7CgNoDnnpfMIPrtZtBzVthMl20CF/XtE/ckaUc8bEUcTaURDFZfLdTj+weSjwT7Yn2+NhqwX0xuptUq91/xFDZIWcD1bTriFvqTlqkCc8Jfn4ogLlf/SsNnSEDokzsPt0+LN8nPXwsrAu2w9T5xiiAsplboQCNP41ULxFiEcIbauyQ3KNw1vSRbeuNyufISm79KR346L+EVpK9gmG89oVx3fpa4212dlmNpYX2X0WSAcA35wBt/7SKGnJylNg48r7DpONsi6Kuy6/DhxfyDh+Ih+AXGbs1ZXoFpriRCA1/+aRXhsJOW7bg71o33u76X1xI9zsbAgZrAOOGn1+a0ecE7faQ7evZitPAEuemjx8+VzUHyx5BNXE+sI/PmlzMQAOyjsFGO2iabUBUN3pCwFKvSdReXExdRnY3kChSD7bHRAhhArSsjx6t9ZvnZrpluQLvNFnsIW8N4iqxC6QWqwNNMjdIQDju1Gl+ItPgq7gVwcsW0GLNm4g3iDGq5nLHYjua1+OyNCNaOJAYs7VutxN9n0aNcfMEspJYqKFXvYaUy/VSbTtbTSBZlt9wR4XdhrYCieS2YxoI+InK0b99yOIHiODIH5zHXpJzQ== cloudru-dart-pro
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMgQNlvwUePjtigSOU8CrNyPZoD5lgkuZvtCpBOWhRP Пользователь@DESKTOP-K5F9V9E
 SSHKEY
 chmod 600 ~/.ssh/authorized_keys
 echo "  OK"
