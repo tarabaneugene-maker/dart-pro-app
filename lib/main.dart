@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Игровые модули
 import 'game/local_game_menu_page.dart';
@@ -9,6 +11,7 @@ import 'training/training_page.dart';
 // Онлайн модули
 import 'online/services/websocket_backend.dart';
 import 'online/auth/login_page.dart';
+import 'online/server_url.dart';
 
 void main() {
   runApp(const DartsApp());
@@ -51,6 +54,7 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final WebSocketBackend _backend = WebSocketBackend();
   bool _backendConnected = false;
+  StreamSubscription? _backendSub;
 
   static const List<String> _titles = <String>['Тренировка', 'Игра', 'Онлайн'];
 
@@ -58,30 +62,35 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _connectBackend();
+    // Слушаем события, чтобы обновлять иконку WiFi в реальном времени
+    _backendSub = _backend.events.listen((event) {
+      if (event is PongEvent || event is AuthOkEvent) {
+        if (mounted) setState(() => _backendConnected = _backend.isConnected);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _backendSub?.cancel();
     _backend.dispose();
     super.dispose();
   }
 
   Future<void> _connectBackend() async {
-    // URL сервера: по умолчанию localhost, но можно переопределить через флаг
-    // Для продакшена задаётся через --dart-define=SERVER_URL=ws://...
-    const serverUrl = String.fromEnvironment(
-      'SERVER_URL',
-      defaultValue: 'ws://localhost:8080/ws',
-    );
+    final serverUrl = resolveServerUrl();
+
+    debugPrint('Подключаюсь к серверу: $serverUrl');
     try {
       await _backend.connect(serverUrl);
       if (mounted) {
-        setState(() => _backendConnected = true);
+        setState(() => _backendConnected = _backend.isConnected);
       }
     } catch (e) {
       debugPrint('Не удалось подключиться к серверу: $e');
-      // Продолжаем работу — пользователь увидит страницу логина
-      // и сможет переподключиться
+      if (mounted) {
+        setState(() => _backendConnected = _backend.isConnected);
+      }
     }
   }
 
@@ -90,14 +99,25 @@ class _HomePageState extends State<HomePage> {
     final List<Widget> pages = <Widget>[
       const TrainingPage(),
       const LocalGameMenuPage(),
-      // Если бэкенд подключён — показываем логин, иначе заглушку
-      _backendConnected
-          ? LoginPage(backend: _backend)
-          : _buildConnectionError(),
+      LoginPage(backend: _backend),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_selectedIndex])),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Text(_titles[_selectedIndex]),
+            if (_selectedIndex == 2) ...[
+              const SizedBox(width: 8),
+              Icon(
+                _backendConnected ? Icons.wifi : Icons.wifi_off,
+                color: _backendConnected ? Colors.green : Colors.red,
+                size: 18,
+              ),
+            ],
+          ],
+        ),
+      ),
       body: SafeArea(child: pages[_selectedIndex]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -123,40 +143,6 @@ class _HomePageState extends State<HomePage> {
             label: 'Онлайн',
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'Не удалось подключиться к серверу',
-              style: TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Убедитесь, что сервер запущен на localhost:8080',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _backendConnected = false);
-                _connectBackend();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Повторить подключение'),
-            ),
-          ],
-        ),
       ),
     );
   }

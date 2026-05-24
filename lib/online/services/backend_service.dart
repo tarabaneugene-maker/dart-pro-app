@@ -5,6 +5,7 @@ class AuthResult {
   final bool success;
   final String? userId;
   final String? login;
+  final String? displayName;
   final String? token;
   final String? error;
 
@@ -12,6 +13,7 @@ class AuthResult {
     required this.success,
     this.userId,
     this.login,
+    this.displayName,
     this.token,
     this.error,
   });
@@ -126,8 +128,9 @@ sealed class ServerEvent {}
 class AuthOkEvent extends ServerEvent {
   final String userId;
   final String login;
+  final String? displayName;
   final String? token;
-  AuthOkEvent({required this.userId, required this.login, this.token});
+  AuthOkEvent({required this.userId, required this.login, this.displayName, this.token});
 }
 
 class ErrorEvent extends ServerEvent {
@@ -215,8 +218,11 @@ class PongEvent extends ServerEvent {}
 abstract class BackendService {
   Future<void> connect(String url);
   void disconnect();
+  bool get isConnected;
+  Future<void> waitForConnection();
+  Future<void> ensureConnected();
 
-  Future<AuthResult> register(String login, String password);
+  Future<AuthResult> register(String login, String password, {String displayName = ''});
   Future<AuthResult> login(String login, String password);
   Future<AuthResult> authWithToken(String token);
 

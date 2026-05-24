@@ -9,6 +9,44 @@ import 'game/game_room_manager.dart';
 import 'models/room.dart';
 import 'models/match_result.dart';
 import 'package:uuid/uuid.dart';
+import 'package:mime/mime.dart';
+
+/// Rate limiter: не более [maxRequests] за [windowDuration] на один IP
+class _RateLimiter {
+  final int maxRequests;
+  final Duration windowDuration;
+  final Map<String, _RateEntry> _entries = {};
+
+  _RateLimiter({this.maxRequests = 30, this.windowDuration = const Duration(seconds: 10)});
+
+  /// Возвращает true, если запрос разрешён
+  bool allow(String key) {
+    final now = DateTime.now();
+    final entry = _entries[key];
+    if (entry == null) {
+      _entries[key] = _RateEntry(count: 1, windowStart: now);
+      return true;
+    }
+    if (now.difference(entry.windowStart) > windowDuration) {
+      _entries[key] = _RateEntry(count: 1, windowStart: now);
+      return true;
+    }
+    entry.count++;
+    return entry.count <= maxRequests;
+  }
+
+  /// Очистка старых записей
+  void cleanUp() {
+    final now = DateTime.now();
+    _entries.removeWhere((_, entry) => now.difference(entry.windowStart) > windowDuration);
+  }
+}
+
+class _RateEntry {
+  int count;
+  DateTime windowStart;
+  _RateEntry({required this.count, required this.windowStart});
+}
 
 /// Главный сервер Dart Pro App
 class GameServer {
@@ -16,6 +54,10 @@ class GameServer {
   late final AuthHandler _auth;
   late final GameRoomManager _rooms;
   final Uuid _uuid = const Uuid();
+
+  // Rate limiters
+  final _rateLimiter = _RateLimiter(maxRequests: 30, windowDuration: const Duration(seconds: 10));
+  final _loginRateLimiter = _RateLimiter(maxRequests: 5, windowDuration: const Duration(seconds: 60));
 
   // Подключённые клиенты: userId -> WebSocket
   final Map<String, WebSocketChannel> _clients = {};
@@ -26,20 +68,38 @@ class GameServer {
 
   Timer? _heartbeatTimer;
   Timer? _timeoutTimer;
+  Timer? _rateLimitCleanupTimer;
+
+  HttpServer? _server;
 
   static const _heartbeatInterval = Duration(seconds: 15);
   static const _timeoutCheckInterval = Duration(seconds: 30);
   static const _legsToWin = 3;
 
-  Future<void> start({int? port, String dbPath = 'dart_pro.db'}) async {
+  Future<void> start({int? port, String? dbPath}) async {
     // Railway передаёт порт через переменную окружения PORT
     final actualPort = port ?? int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;
-    _db.init(dbPath);
+    // Путь к БД из переменной окружения или по умолчанию
+    final actualDbPath = dbPath ?? Platform.environment['DB_PATH'] ?? 'dart_pro.db';
+    _db.init(actualDbPath);
     _auth = AuthHandler(_db);
     _rooms = GameRoomManager();
 
-    final server = await HttpServer.bind(InternetAddress.anyIPv4, actualPort);
+    _server = await HttpServer.bind(InternetAddress.anyIPv4, actualPort);
     print('🚀 Dart Pro Server запущен на порту $actualPort');
+
+    // Graceful shutdown: обработка SIGTERM/SIGINT
+    // SIGTERM не поддерживается на Windows — проверяем платформу
+    if (!Platform.isWindows) {
+      ProcessSignal.sigterm.watch().listen((_) {
+        print('📥 Получен SIGTERM, завершаем работу...');
+        shutdown();
+      });
+    }
+    ProcessSignal.sigint.watch().listen((_) {
+      print('📥 Получен SIGINT, завершаем работу...');
+      shutdown();
+    });
 
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
       _checkHeartbeats();
@@ -49,34 +109,121 @@ class GameServer {
       _rooms.checkTimeouts();
     });
 
-    await for (final request in server) {
-      if (request.uri.path == '/ws') {
-        final ws = await WebSocketTransformer.upgrade(request);
-        final channel = IOWebSocketChannel(ws);
-        _handleConnection(channel);
-      } else {
+    _rateLimitCleanupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _rateLimiter.cleanUp();
+      _loginRateLimiter.cleanUp();
+    });
+
+    await for (final request in _server!) {
+      try {
+        _handleRequest(request);
+      } catch (e) {
+        print('❌ Ошибка обработки запроса: $e');
+        try {
+          request.response
+            ..statusCode = 500
+            ..write('Internal Server Error')
+            ..close();
+        } catch (_) {}
+      }
+    }
+  }
+
+  void _handleRequest(HttpRequest request) {
+    final ip = request.connectionInfo?.remoteAddress.address ?? 'unknown';
+
+    // Health check
+    if (request.uri.path == '/health') {
+      request.response
+        ..statusCode = 200
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({
+          'status': 'ok',
+          'uptime': DateTime.now().toIso8601String(),
+          'activeRooms': _rooms.activeRooms.length,
+          'activePlayers': _clients.length,
+        }))
+        ..close();
+      return;
+    }
+
+    // Rate limiting для всех запросов
+    if (!_rateLimiter.allow(ip)) {
+      request.response
+        ..statusCode = 429
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({
+          'error': 'Слишком много запросов. Пожалуйста, подождите.',
+          'retryAfter': 10,
+        }))
+        ..close();
+      return;
+    }
+
+    if (request.uri.path == '/ws') {
+      final ws = WebSocketTransformer.upgrade(request);
+      ws.then((webSocket) {
+        final channel = IOWebSocketChannel(webSocket);
+        _handleConnection(channel, ip);
+      }).catchError((e) {
+        print('❌ Ошибка WebSocket upgrade: $e');
+      });
+    } else {
+      _serveStatic(request);
+    }
+  }
+
+  /// Раздаёт статику Flutter Web из папки ../build/web
+  void _serveStatic(HttpRequest request) {
+    final buildPath = '../build/web';
+    String filePath;
+
+    if (request.uri.path == '/' || request.uri.path.isEmpty) {
+      filePath = '$buildPath/index.html';
+    } else {
+      filePath = '$buildPath${request.uri.path}';
+    }
+
+    final file = File(filePath);
+    if (file.existsSync()) {
+      final mimeType = lookupMimeType(filePath) ?? 'application/octet-stream';
+      request.response
+        ..statusCode = 200
+        ..headers.contentType = ContentType.parse(mimeType)
+        ..headers.set('Access-Control-Allow-Origin', '*')
+        ..headers.set('Cache-Control', 'public, max-age=3600')
+        ..add(file.readAsBytesSync())
+        ..close();
+    } else {
+      // SPA fallback: все неизвестные пути отдают index.html
+      final indexFile = File('$buildPath/index.html');
+      if (indexFile.existsSync()) {
         request.response
           ..statusCode = 200
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-                'status': 'ok',
-                'activeRooms': _rooms.activeRooms.length,
-                'connectedClients': _clients.length,
-              }))
+          ..headers.contentType = ContentType.html
+          ..headers.set('Cache-Control', 'public, max-age=0')
+          ..add(indexFile.readAsBytesSync())
+          ..close();
+      } else {
+        request.response
+          ..statusCode = 404
+          ..write('Not Found. Собери Flutter Web: flutter build web --release')
           ..close();
       }
     }
   }
 
-  void _handleConnection(WebSocketChannel ws) {
-    print('🔌 Новое подключение');
+  void _handleConnection(WebSocketChannel ws, String ip) {
+    print('🔌 Новое подключение с $ip');
 
     ws.stream.listen(
       (data) {
         try {
           final message = jsonDecode(data as String) as Map<String, dynamic>;
-          _handleMessage(ws, message);
-        } catch (e) {
+          _handleMessage(ws, message, ip);
+      } catch (e) {
+          print('❌ Ошибка обработки сообщения: $e');
+          print('   Данные: $data');
           _send(ws, {'type': 'error', 'message': 'Некорректное сообщение'});
         }
       },
@@ -85,8 +232,19 @@ class GameServer {
     );
   }
 
-  void _handleMessage(WebSocketChannel ws, Map<String, dynamic> message) {
+  void _handleMessage(WebSocketChannel ws, Map<String, dynamic> message, String ip) {
     final type = message['type'] as String?;
+
+    // Rate limiting для login/register
+    if (type == 'login' || type == 'register') {
+      if (!_loginRateLimiter.allow(ip)) {
+        _send(ws, {
+          'type': 'error',
+          'message': 'Слишком много попыток входа. Подождите 60 секунд.',
+        });
+        return;
+      }
+    }
 
     switch (type) {
       case 'register':
@@ -143,15 +301,18 @@ class GameServer {
   void _handleRegister(WebSocketChannel ws, Map<String, dynamic> message) {
     final login = message['login'] as String? ?? '';
     final password = message['password'] as String? ?? '';
+    final displayName = message['displayName'] as String? ?? login;
 
-    final result = _auth.register(login, password);
+    final result = _auth.register(login, password, displayName: displayName);
     if (result['success'] == true) {
       final userId = result['user']['id'] as String;
+      final user = result['user'] as Map<String, dynamic>;
       _registerClient(ws, userId);
       _send(ws, {
         'type': 'auth_ok',
         'userId': userId,
         'login': login,
+        'displayName': user['displayName'] ?? login,
         'token': result['token'],
       });
     } else {
@@ -166,11 +327,13 @@ class GameServer {
     final result = _auth.login(login, password);
     if (result['success'] == true) {
       final userId = result['user']['id'] as String;
+      final user = result['user'] as Map<String, dynamic>;
       _registerClient(ws, userId);
       _send(ws, {
         'type': 'auth_ok',
         'userId': userId,
         'login': login,
+        'displayName': user['displayName'] ?? login,
         'token': result['token'],
       });
     } else {
@@ -189,6 +352,7 @@ class GameServer {
         'type': 'auth_ok',
         'userId': userId,
         'login': user?.login ?? '',
+        'displayName': user?.displayName ?? user?.login ?? '',
       });
     } else {
       _send(ws, {'type': 'error', 'message': 'Недействительный токен'});
@@ -202,7 +366,7 @@ class GameServer {
   void _handleCreateRoom(WebSocketChannel ws, Map<String, dynamic> message) {
     final userId = _clientUsers[ws];
     if (userId == null) {
-      _send(ws, {'type': 'error', 'message': 'Не авторизован'});
+      _send(ws, {'type': 'error', 'code': 'not_authenticated', 'message': 'Не авторизован'});
       return;
     }
 
@@ -559,12 +723,44 @@ class GameServer {
   }
 
   void shutdown() {
+    print('🛑 Завершение работы сервера...');
+
     _heartbeatTimer?.cancel();
     _timeoutTimer?.cancel();
-    for (final ws in _clients.values) {
-      ws.sink.close();
+    _rateLimitCleanupTimer?.cancel();
+
+    // Уведомляем всех клиентов
+    for (final entry in _clients.entries) {
+      try {
+        entry.value.sink.add(jsonEncode({
+          'type': 'server_shutdown',
+          'message': 'Сервер завершает работу. Игры будут сохранены.',
+        }));
+      } catch (_) {}
     }
+
+    // Сохраняем активные игры
+    for (final room in _rooms.activeRooms) {
+      if (room.status == RoomStatus.playing) {
+        _saveMatchResult(room);
+      }
+    }
+
+    // Закрываем все соединения
+    for (final ws in _clients.values) {
+      try {
+        ws.sink.close();
+      } catch (_) {}
+    }
+
     _db.dispose();
+
+    // Закрываем HTTP сервер
+    try {
+      _server?.close(force: true);
+    } catch (_) {}
+
+    print('✅ Сервер завершил работу');
   }
 }
 

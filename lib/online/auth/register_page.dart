@@ -16,6 +16,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _nameController = TextEditingController();
   bool _loading = false;
   String? _error;
 
@@ -24,6 +25,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _loginController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -31,8 +33,9 @@ class _RegisterPageState extends State<RegisterPage> {
     final login = _loginController.text.trim();
     final password = _passwordController.text;
     final confirm = _confirmController.text;
+    final displayName = _nameController.text.trim();
 
-    if (login.isEmpty || password.isEmpty || confirm.isEmpty) {
+    if (login.isEmpty || password.isEmpty || confirm.isEmpty || displayName.isEmpty) {
       setState(() => _error = 'Заполните все поля');
       return;
     }
@@ -47,12 +50,28 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    if (displayName.length < 2) {
+      setState(() => _error = 'Имя должно быть не менее 2 символов');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
     });
 
-    final result = await widget.backend.register(login, password);
+    try {
+      await widget.backend.ensureConnected();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Нет связи с сервером. Попробуйте позже.';
+      });
+      return;
+    }
+
+    final result = await widget.backend.register(login, password, displayName: displayName);
 
     if (!mounted) return;
 
@@ -61,7 +80,10 @@ class _RegisterPageState extends State<RegisterPage> {
     if (result.success) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => LobbyPage(backend: widget.backend),
+          builder: (_) => LobbyPage(
+            backend: widget.backend,
+            displayName: result.displayName ?? result.login ?? 'Игрок',
+          ),
         ),
         (route) => false,
       );
@@ -73,7 +95,10 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Регистрация')),
+      appBar: AppBar(
+        title: const Text('Регистрация'),
+        leading: const BackButton(),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -92,6 +117,17 @@ class _RegisterPageState extends State<RegisterPage> {
                 decoration: const InputDecoration(
                   labelText: 'Логин',
                   prefixIcon: Icon(Icons.person),
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Отображаемое имя',
+                  hintText: 'Как вас будут видеть в игре',
+                  prefixIcon: Icon(Icons.badge),
                   border: OutlineInputBorder(),
                 ),
                 textInputAction: TextInputAction.next,

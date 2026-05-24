@@ -5,21 +5,21 @@ import 'auth/login_page.dart';
 import 'room_detail_page.dart';
 import 'room_creator_page.dart';
 import 'profile/profile_page.dart';
+import '../main.dart';
 
-/// Лобби — список открытых игр + создание + ввод кода
+/// Лобби — список открытых игр + кнопки создания и входа по коду
 class LobbyPage extends StatefulWidget {
   final BackendService backend;
+  final String displayName;
 
-  const LobbyPage({super.key, required this.backend});
+  const LobbyPage({super.key, required this.backend, required this.displayName});
 
   @override
   State<LobbyPage> createState() => _LobbyPageState();
 }
 
 class _LobbyPageState extends State<LobbyPage> {
-  final _nameController = TextEditingController(text: 'Игрок');
   final _codeController = TextEditingController();
-  final _avgController = TextEditingController(text: '0');
   List<LobbyRoomInfo> _rooms = [];
   StreamSubscription? _subscription;
   bool _loading = true;
@@ -28,15 +28,19 @@ class _LobbyPageState extends State<LobbyPage> {
   void initState() {
     super.initState();
     _subscription = widget.backend.events.listen(_handleEvent);
+    // E1: ждём соединения перед входом в лобби
+    _enterLobbyWhenReady();
+  }
+
+  Future<void> _enterLobbyWhenReady() async {
+    await widget.backend.waitForConnection();
     widget.backend.enterLobby();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
-    _nameController.dispose();
     _codeController.dispose();
-    _avgController.dispose();
     widget.backend.leaveLobby();
     super.dispose();
   }
@@ -50,14 +54,16 @@ class _LobbyPageState extends State<LobbyPage> {
           _loading = false;
         });
         break;
-      case RoomCreatedEvent e:
-        _openCreatorPage(e.code);
-        break;
       case ErrorEvent e:
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message)),
-          );
+          // E2: если «Не авторизован» — предложить перелогиниться
+          if (e.message.contains('Не авторизован') || e.message.contains('не авторизован')) {
+            _showReauthSnackBar();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(e.message)),
+            );
+          }
         }
         break;
       default:
@@ -65,25 +71,60 @@ class _LobbyPageState extends State<LobbyPage> {
     }
   }
 
-  void _createRoom({bool isPrivate = false}) {
-    final name = _nameController.text.trim().isEmpty
-        ? 'Игрок'
-        : _nameController.text.trim();
-
-    widget.backend.createRoom(name,
-        isPrivate: isPrivate, gameType: '501', gameParams: {'legs': 5});
+  void _showReauthSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Сессия сброшена. Выйдите и войдите снова'),
+        action: SnackBarAction(
+          label: 'Выйти',
+          onPressed: _logout,
+        ),
+      ),
+    );
   }
 
-  void _openCreatorPage(String code) {
+  void _createRoom({bool isPrivate = false}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => RoomCreatorPage(
           backend: widget.backend,
-          roomCode: code,
-          playerName: _nameController.text.trim().isEmpty
-              ? 'Игрок'
-              : _nameController.text.trim(),
+          playerName: widget.displayName,
+          isPrivate: isPrivate,
         ),
+      ),
+    );
+  }
+
+  void _showJoinDialog() {
+    _codeController.clear();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Вступить по коду'),
+        content: TextField(
+          controller: _codeController,
+          decoration: const InputDecoration(
+            labelText: 'Код комнаты',
+            hintText: 'ABC123',
+            prefixIcon: Icon(Icons.vpn_key),
+            border: OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.characters,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _joinByCode();
+            },
+            child: const Text('Присоединиться'),
+          ),
+        ],
       ),
     );
   }
@@ -97,12 +138,7 @@ class _LobbyPageState extends State<LobbyPage> {
       return;
     }
 
-    final name = _nameController.text.trim().isEmpty
-        ? 'Игрок'
-        : _nameController.text.trim();
-    final avg = double.tryParse(_avgController.text) ?? 0;
-
-    widget.backend.joinByCode(code, name, avg: avg);
+    widget.backend.joinByCode(code, widget.displayName);
   }
 
   void _openRoomDetail(LobbyRoomInfo room) {
@@ -111,18 +147,21 @@ class _LobbyPageState extends State<LobbyPage> {
         builder: (_) => RoomDetailPage(
           backend: widget.backend,
           roomInfo: room,
-          playerName: _nameController.text.trim().isEmpty
-              ? 'Игрок'
-              : _nameController.text.trim(),
-          playerAvg: double.tryParse(_avgController.text) ?? 0,
+          playerName: widget.displayName,
+          playerAvg: 0,
         ),
       ),
     );
   }
 
-  void _logout() {
+  Future<void> _logout() async {
     widget.backend.clearToken();
     widget.backend.disconnect();
+    // Сразу поднимаем сокет снова — иначе вход/регистрация ждут мёртвое соединение
+    try {
+      await widget.backend.ensureConnected();
+    } catch (_) {}
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => LoginPage(backend: widget.backend),
@@ -135,8 +174,34 @@ class _LobbyPageState extends State<LobbyPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Лобби'),
+        title: Text('Лобби — ${widget.displayName}'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'На главную',
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => const HomePage(),
+              ),
+              (route) => false,
+            );
+          },
+        ),
         actions: [
+          // Индикатор подключения
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Icon(
+              widget.backend.isConnected ? Icons.wifi : Icons.wifi_off,
+              color: widget.backend.isConnected ? Colors.green : Colors.red,
+              size: 20,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.vpn_key),
+            tooltip: 'Вступить по коду',
+            onPressed: _showJoinDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             tooltip: 'Профиль',
@@ -155,148 +220,105 @@ class _LobbyPageState extends State<LobbyPage> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          // Поля ввода
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Ваше имя',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _avgController,
-            decoration: const InputDecoration(
-              labelText: 'Средний набор',
-              prefixIcon: Icon(Icons.trending_up),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-
-          // Кнопки создания
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: () => _createRoom(),
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Создать игру'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _createRoom(isPrivate: true),
-                    icon: const Icon(Icons.lock_outline),
-                    label: const Text('Создать с кодом'),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Ввод кода
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _codeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Код комнаты',
-                    prefixIcon: Icon(Icons.vpn_key),
-                    border: OutlineInputBorder(),
-                    hintText: 'ABC123',
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                  textInputAction: TextInputAction.go,
-                  onSubmitted: (_) => _joinByCode(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 56,
-                child: IconButton.filled(
-                  onPressed: _joinByCode,
-                  icon: const Icon(Icons.login),
-                  tooltip: 'Присоединиться по коду',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Разделитель
-          Row(
-            children: [
-              Text('Открытые игры',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              if (_loading)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Список комнат
-          if (_rooms.isEmpty && !_loading)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.sports_esports_outlined,
-                          size: 48, color: Colors.grey.shade500),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Нет открытых игр',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Создайте игру или введите код',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey,
+          // Список игр
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                widget.backend.getLobby();
+              },
+              child: _rooms.isEmpty && !_loading
+                  ? ListView(
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.3,
+                        ),
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.sports_esports_outlined,
+                                  size: 64, color: Colors.grey.shade500),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Нет открытых игр',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Нажмите "Создать игру" чтобы начать',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (_loading)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: CircularProgressIndicator(),
                             ),
+                          ),
+                        ..._rooms.map((room) => Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  child: Text(room.creatorName[0].toUpperCase()),
+                                ),
+                                title: Text(room.creatorName),
+                                subtitle: Text(
+                                  'Средний: ${room.creatorAvg.toStringAsFixed(1)} | '
+                                  '${room.gameType} | '
+                                  'Best of ${room.gameParams['legs'] ?? 5}',
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => _openRoomDetail(room),
+                              ),
+                            )),
+                      ],
+                    ),
+            ),
+          ),
+          // Нижняя панель с кнопками
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _createRoom(isPrivate: true),
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text('Приватная'),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: () => _createRoom(),
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Создать игру'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            )
-          else
-            ..._rooms.map((room) => Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(room.creatorName[0].toUpperCase()),
-                    ),
-                    title: Text(room.creatorName),
-                    subtitle: Text(
-                      'Средний: ${room.creatorAvg.toStringAsFixed(1)} | '
-                      '${room.gameType} | '
-                      'Best of ${room.gameParams['legs'] ?? 5}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openRoomDetail(room),
-                  ),
-                )),
+            ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
+import '../utils/dart_utils.dart';
 
 /// Онлайн-игра 501
 ///
@@ -188,6 +189,10 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
   void _submitThrow() {
     if (!_isMyTurn || _inputScore <= 0) return;
+    if (!isValidThreeDartScore(_inputScore)) {
+      _showSnackBar('Невозможная сумма (${_inputScore}) для трёх дротиков');
+      return;
+    }
     widget.backend.sendThrow(_inputScore);
     setState(() {
       _inputText = '';

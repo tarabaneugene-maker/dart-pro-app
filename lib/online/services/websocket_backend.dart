@@ -12,143 +12,269 @@ class WebSocketBackend implements BackendService {
       StreamController<ServerEvent>.broadcast();
 
   Timer? _pingTimer;
+  Timer? _reconnectTimer;
   String? _token;
   bool _connected = false;
+  String? _lastUrl;
+  bool _disposed = false;
+
+  // === НОВОЕ: защита от гонок ===
+  int _connectionGeneration = 0;
+  StreamSubscription? _streamSub;
+  final List<Map<String, dynamic>> _outbox = [];
+
+  // === НОВОЕ: request-response для auth ===
+  Completer<Map<String, dynamic>>? _pendingAuth;
+  bool _authInProgress = false;
+  Completer<void>? _authReady; // завершается когда reauth закончен
 
   static const _tokenKey = 'auth_token';
+
+  @override
+  bool get isConnected => _connected;
+
+  @override
+  Future<void> waitForConnection() async {
+    if (_connected) return;
+    // Ждём пока _connected станет true (максимум 5 секунд)
+    for (var i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_connected) return;
+    }
+  }
+
+  /// НОВОЕ: гарантировать, что соединение есть (если нет — переподключиться)
+  Future<void> ensureConnected() async {
+    if (_connected && _channel != null) return;
+    // Сначала подождать — может reconnect уже идёт
+    await waitForConnection();
+    if (_connected && _channel != null) return; // дождались!
+    if (_lastUrl != null) {
+      _reconnectTimer?.cancel(); // отменить запланированный reconnect
+      await connect(_lastUrl!);
+      return;
+    }
+    throw StateError('Нет URL сервера');
+  }
+
+  /// Дождаться завершения reauth (если он ещё идёт)
+  Future<void> waitForAuth() async {
+    if (_authReady != null) {
+      try {
+        await _authReady!.future.timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        // reauth не завершился — продолжаем, createRoom проверит _token
+      }
+    }
+  }
 
   @override
   String? get savedToken => _token;
 
   @override
   Future<void> connect(String url) async {
+    _lastUrl = url;
+    _disposed = false;
+
+    // === A2: закрыть старое соединение ===
+    final gen = ++_connectionGeneration;
+    await _streamSub?.cancel();
+    _streamSub = null;
+    _pingTimer?.cancel();
+    try {
+      await _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
+    _connected = false;
+
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
+      await _channel!.ready.timeout(const Duration(seconds: 10));
+
+      // Если за время подключения появилось новое поколение — выходим
+      if (gen != _connectionGeneration || _disposed) return;
+
       _connected = true;
+      debugPrint('WebSocketBackend: подключено к $url');
 
       _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
         _send({'type': 'ping'});
       });
 
-      _channel!.stream.listen(
+      _streamSub = _channel!.stream.listen(
         (data) {
           try {
             final message = jsonDecode(data as String) as Map<String, dynamic>;
             _handleMessage(message);
-          } catch (e) {
-            debugPrint('WebSocketBackend: ошибка парсинга: $e');
+          } catch (e, stack) {
+            debugPrint('WebSocketBackend: ошибка обработки сообщения: $e\n$stack');
           }
         },
         onDone: () {
-          _connected = false;
-          _pingTimer?.cancel();
           debugPrint('WebSocketBackend: соединение закрыто');
+          if (gen != _connectionGeneration) return; // игнорировать старый сокет
+          _onDisconnected();
         },
         onError: (error) {
-          _connected = false;
-          _pingTimer?.cancel();
-          debugPrint('WebSocketBackend: ошибка: $error');
+          debugPrint('WebSocketBackend: ошибка стрима: $error');
+          if (gen != _connectionGeneration) return; // игнорировать старый сокет
+          _onDisconnected();
         },
       );
 
+      // Токен читаем
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString(_tokenKey);
-      if (_token != null) {
-        _send({'type': 'auth', 'token': _token});
-      }
+
+      // === A3: повторная авторизация после connect (fire-and-forget) ===
+      _authReady = Completer<void>();
+      unawaited(_reauthenticateAfterConnect().whenComplete(() {
+        _authReady?.complete();
+      }));
+
+      // === A1: отправить накопившиеся сообщения ===
+      _flushOutbox();
     } catch (e) {
       debugPrint('WebSocketBackend: ошибка подключения: $e');
+      if (gen != _connectionGeneration) return; // игнорировать старый сокет
+      _onDisconnected();
       rethrow;
     }
   }
 
+  /// A3: повторная авторизация после каждого connect/reconnect
+  Future<void> _reauthenticateAfterConnect() async {
+    final token = _token;
+    if (token == null || token.isEmpty) return;
+    try {
+      final result = await authWithToken(token);
+      if (!result.success) {
+        debugPrint('WebSocketBackend: re-auth failed: ${result.error}');
+        clearToken();
+      } else {
+        debugPrint('WebSocketBackend: re-auth успешен');
+      }
+    } catch (e) {
+      debugPrint('WebSocketBackend: re-auth error: $e');
+    }
+  }
+
+  void _onDisconnected() {
+    _connected = false;
+    _pingTimer?.cancel();
+    // Авто-переподключение через 3 секунды
+    _reconnectTimer?.cancel();
+    if (!_disposed && _lastUrl != null) {
+      _reconnectTimer = Timer(const Duration(seconds: 3), () {
+        debugPrint('WebSocketBackend: попытка переподключения...');
+        connect(_lastUrl!).catchError((_) {});
+      });
+    }
+  }
+
+  /// A6: disconnect() — НЕ ставит _disposed = true
   @override
   void disconnect() {
+    _reconnectTimer?.cancel();
     _pingTimer?.cancel();
+    _streamSub?.cancel();
     _channel?.sink.close();
+    _channel = null;
     _connected = false;
+    _outbox.clear();
+    // НЕ ставим _disposed = true — reconnect должен работать
+  }
+
+  /// Внутренний метод для выполнения auth-запроса с защитой от гонок
+  Future<AuthResult> _performAuth({
+    required String type,
+    required Map<String, dynamic> payload,
+    bool saveTokenOnSuccess = false,
+  }) async {
+    // Если уже идёт авторизация — ждём её завершения
+    if (_authInProgress) {
+      await _pendingAuth?.future;
+    }
+
+    _authInProgress = true;
+    final completer = Completer<Map<String, dynamic>>();
+    _pendingAuth = completer;
+
+    _send(payload);
+
+    try {
+      final message = await completer.future.timeout(const Duration(seconds: 10));
+      if (message['type'] == 'auth_ok') {
+        final token = message['token'] as String?;
+        if (saveTokenOnSuccess && token != null) {
+          _token = token;
+          _saveToken(token);
+        }
+        return AuthResult(
+          success: true,
+          userId: message['userId'] as String?,
+          login: message['login'] as String?,
+          displayName: message['displayName'] as String?,
+          token: token,
+        );
+      } else {
+        return AuthResult(success: false, error: message['message'] as String? ?? 'Ошибка $type');
+      }
+    } on TimeoutException {
+      return AuthResult(success: false, error: 'Таймаут подключения');
+    } finally {
+      _pendingAuth = null;
+      _authInProgress = false;
+    }
   }
 
   @override
-  Future<AuthResult> register(String login, String password) async {
-    final completer = Completer<AuthResult>();
-    final sub = events.listen((event) {
-      if (event is AuthOkEvent) {
-        _token = event.token;
-        _saveToken(event.token!);
-        completer.complete(AuthResult(
-          success: true,
-          userId: event.userId,
-          login: event.login,
-          token: event.token,
-        ));
-      } else if (event is ErrorEvent) {
-        completer.complete(AuthResult(success: false, error: event.message));
-      }
-    });
-
-    _send({'type': 'register', 'login': login, 'password': password});
-    return completer.future.timeout(const Duration(seconds: 10),
-        onTimeout: () {
-      sub.cancel();
-      return AuthResult(success: false, error: 'Таймаут подключения');
-    });
+  Future<AuthResult> register(String login, String password, {String displayName = ''}) async {
+    await ensureConnected();
+    return _performAuth(
+      type: 'register',
+      payload: {
+        'type': 'register',
+        'login': login,
+        'password': password,
+        'displayName': displayName,
+      },
+      saveTokenOnSuccess: true,
+    );
   }
 
   @override
   Future<AuthResult> login(String login, String password) async {
-    final completer = Completer<AuthResult>();
-    final sub = events.listen((event) {
-      if (event is AuthOkEvent) {
-        _token = event.token;
-        _saveToken(event.token!);
-        completer.complete(AuthResult(
-          success: true,
-          userId: event.userId,
-          login: event.login,
-          token: event.token,
-        ));
-      } else if (event is ErrorEvent) {
-        completer.complete(AuthResult(success: false, error: event.message));
-      }
-    });
-
-    _send({'type': 'login', 'login': login, 'password': password});
-    return completer.future.timeout(const Duration(seconds: 10),
-        onTimeout: () {
-      sub.cancel();
-      return AuthResult(success: false, error: 'Таймаут подключения');
-    });
+    await ensureConnected();
+    return _performAuth(
+      type: 'login',
+      payload: {'type': 'login', 'login': login, 'password': password},
+      saveTokenOnSuccess: true,
+    );
   }
 
   @override
   Future<AuthResult> authWithToken(String token) async {
-    final completer = Completer<AuthResult>();
-    final sub = events.listen((event) {
-      if (event is AuthOkEvent) {
-        completer.complete(AuthResult(
-          success: true,
-          userId: event.userId,
-          login: event.login,
-        ));
-      } else if (event is ErrorEvent) {
-        completer.complete(AuthResult(success: false, error: event.message));
-      }
-    });
-
-    _send({'type': 'auth', 'token': token});
-    return completer.future.timeout(const Duration(seconds: 10),
-        onTimeout: () {
-      sub.cancel();
-      return AuthResult(success: false, error: 'Таймаут подключения');
-    });
+    await ensureConnected();
+    return _performAuth(
+      type: 'auth',
+      payload: {'type': 'auth', 'token': token},
+      saveTokenOnSuccess: false,
+    );
   }
 
+  /// A5: createRoom — async + проверки
   @override
   Future<void> createRoom(String playerName,
       {bool isPrivate = false,
       String gameType = '501',
       Map<String, dynamic>? gameParams}) async {
+    await ensureConnected();
+    // Ждём завершения reauth (если он ещё идёт)
+    await waitForAuth();
+    if (_token == null) {
+      throw StateError('Не авторизован');
+    }
     _send({
       'type': 'create_room',
       'playerName': playerName,
@@ -232,35 +358,80 @@ class WebSocketBackend implements BackendService {
     });
   }
 
+  /// A6: dispose() — полная зачистка
   @override
   void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
     _pingTimer?.cancel();
+    _streamSub?.cancel();
     _eventController.close();
     _channel?.sink.close();
+    _channel = null;
+    _connected = false;
+    _outbox.clear();
   }
 
   // ===================================================================
   // ВНУТРЕННЕЕ
   // ===================================================================
 
+  /// A1: _send с очередью
   void _send(Map<String, dynamic> data) {
-    if (_channel != null && _connected) {
-      try {
-        _channel!.sink.add(jsonEncode(data));
-      } catch (e) {
-        debugPrint('WebSocketBackend: ошибка отправки: $e');
-      }
+    if (!_connected || _channel == null) {
+      _outbox.add(data);
+      debugPrint('WebSocketBackend: ⛔ в очередь (offline): ${data['type']}');
+      return;
+    }
+    try {
+      _channel!.sink.add(jsonEncode(data));
+      debugPrint('WebSocketBackend: ✅ отправлено: $data');
+    } catch (e) {
+      debugPrint('WebSocketBackend: ❌ ошибка отправки: $e');
+      _outbox.add(data);
+      _onDisconnected();
+    }
+  }
+
+  /// A1: отправить накопившиеся сообщения
+  void _flushOutbox() {
+    if (!_connected || _outbox.isEmpty) return;
+    final pending = List<Map<String, dynamic>>.from(_outbox);
+    _outbox.clear();
+    for (final msg in pending) {
+      _send(msg);
     }
   }
 
   void _handleMessage(Map<String, dynamic> message) {
+    debugPrint('WebSocketBackend: получено: $message');
     final type = message['type'] as String?;
 
+    // === A4: перехват auth-ответов для _pendingAuth ===
+    if (_pendingAuth != null && !_pendingAuth!.isCompleted) {
+      if (type == 'auth_ok' || type == 'error') {
+        _pendingAuth!.complete(message);
+        return;
+      }
+    }
+
+    try {
+      _handleMessageSafe(message, type);
+    } catch (e, stack) {
+      debugPrint('WebSocketBackend: ошибка в _handleMessage: $e\n$stack');
+      _eventController.add(ErrorEvent(
+        'Ошибка обработки ответа сервера: $e',
+      ));
+    }
+  }
+
+  void _handleMessageSafe(Map<String, dynamic> message, String? type) {
     switch (type) {
       case 'auth_ok':
         _eventController.add(AuthOkEvent(
           userId: message['userId'] as String,
           login: message['login'] as String,
+          displayName: message['displayName'] as String?,
           token: message['token'] as String?,
         ));
         break;

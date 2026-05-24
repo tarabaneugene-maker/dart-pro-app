@@ -10,6 +10,9 @@ class Database {
 
   void init(String path) {
     _db = sqlite3.open(path);
+    // Включаем WAL mode для конкурентных чтений
+    _db.execute('PRAGMA journal_mode=WAL');
+    _db.execute('PRAGMA busy_timeout=5000');
     _migrate();
     _initialized = true;
   }
@@ -19,10 +22,18 @@ class Database {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         login TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL DEFAULT '',
         password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     ''');
+
+    // Миграция: добавляем колонку display_name, если её нет
+    try {
+      _db.execute('ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT \'\'');
+    } catch (_) {
+      // колонка уже существует — игнорируем
+    }
 
     _db.execute('''
       CREATE TABLE IF NOT EXISTS user_stats (
@@ -60,7 +71,7 @@ class Database {
 
   User? findUserByLogin(String login) {
     final result = _db.select(
-      'SELECT id, login, password_hash, created_at FROM users WHERE login = ?',
+      'SELECT id, login, display_name, password_hash, created_at FROM users WHERE login = ?',
       [login],
     );
     if (result.isEmpty) return null;
@@ -68,6 +79,7 @@ class Database {
     return User(
       id: row['id'] as String,
       login: row['login'] as String,
+      displayName: row['display_name'] as String? ?? row['login'] as String,
       passwordHash: row['password_hash'] as String,
       createdAt: DateTime.parse(row['created_at'] as String),
     );
@@ -75,7 +87,7 @@ class Database {
 
   User? findUserById(String id) {
     final result = _db.select(
-      'SELECT id, login, password_hash, created_at FROM users WHERE id = ?',
+      'SELECT id, login, display_name, password_hash, created_at FROM users WHERE id = ?',
       [id],
     );
     if (result.isEmpty) return null;
@@ -83,6 +95,7 @@ class Database {
     return User(
       id: row['id'] as String,
       login: row['login'] as String,
+      displayName: row['display_name'] as String? ?? row['login'] as String,
       passwordHash: row['password_hash'] as String,
       createdAt: DateTime.parse(row['created_at'] as String),
     );
@@ -90,8 +103,8 @@ class Database {
 
   void createUser(User user) {
     _db.execute(
-      'INSERT INTO users (id, login, password_hash, created_at) VALUES (?, ?, ?, ?)',
-      [user.id, user.login, user.passwordHash, user.createdAt.toIso8601String()],
+      'INSERT INTO users (id, login, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+      [user.id, user.login, user.displayName, user.passwordHash, user.createdAt.toIso8601String()],
     );
     // Создаём пустую статистику
     _db.execute(

@@ -4,6 +4,7 @@ import '../models/game_settings.dart';
 import '../models/game_enums.dart';
 import '../models/player_config.dart';
 import '../bots/dart_bot_501.dart';
+import '../utils/dart_utils.dart';
 
 /// Состояние одного игрока в игре 501
 class _PlayerGameState {
@@ -154,6 +155,14 @@ class _GamePage501State extends State<GamePage501> {
       previousLastApproach: state.lastApproach,
     ));
 
+    // Проверка: сумма должна быть достижима тремя дротиками
+    if (!isValidThreeDartScore(value)) {
+      if (!isBot) {
+        _showErrorDialog('Невозможная сумма ($value) для трёх дротиков');
+      }
+      return;
+    }
+
     // Проверка bust: сумма > остатка
     if (value > currentScore) {
       if (!isBot) {
@@ -201,6 +210,22 @@ class _GamePage501State extends State<GamePage501> {
     if (!isBot) _nextPlayer();
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ошибка ввода'),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showBustDialog(String message) {
     showDialog(
       context: context,
@@ -244,17 +269,18 @@ class _GamePage501State extends State<GamePage501> {
         .values
         .join('-');
 
-    // Проверка на выигрыш матча (по сетам)
-    if (widget.settings.sets > 0 && state.setsWon + 1 >= widget.settings.sets) {
-      state.setsWon++;
-      _showMatchWonDialog(state.setsWon, legScores);
-      return;
-    }
-
-    // Проверка на выигрыш сета
+    // СНАЧАЛА проверка на выигрыш сета
+    bool setWon = false;
     if (state.legsWon >= widget.settings.legs) {
       state.setsWon++;
       state.legsWon = 0;
+      setWon = true;
+    }
+
+    // ПОТОМ проверка на выигрыш матча (по сетам)
+    if (state.setsWon >= widget.settings.sets) {
+      _showMatchWonDialog(state.setsWon, legScores);
+      return;
     }
 
     setState(() {
@@ -591,23 +617,30 @@ class _GamePage501State extends State<GamePage501> {
   // ===================================================================
 
   Widget _buildInfoBlock(ThemeData theme) {
-    final activeState = _players[_currentPlayerIndex];
-    final activePlayer = widget.settings.players[_currentPlayerIndex];
-    final opponentIndex = _currentPlayerIndex == 0 ? 1 : 0;
-    final opponentState = _players[opponentIndex];
-    final opponentPlayer = widget.settings.players[opponentIndex];
+    // Фиксированное расположение: левая колонка = игрок 0 (начинающий),
+    // правая колонка = игрок 1. Активность показываем подсветкой.
+    final player0 = widget.settings.players[0];
+    final player1 = widget.settings.players[1];
+    final state0 = _players[0];
+    final state1 = _players[1];
+    final isActive0 = _currentPlayerIndex == 0;
+    final isActive1 = _currentPlayerIndex == 1;
 
     return Column(
       children: [
         // Плашка активного игрока (компактная)
-        _buildActivePlayerBanner(theme, activePlayer, activeState),
+        _buildActivePlayerBanner(
+          theme,
+          isActive0 ? player0 : player1,
+          isActive0 ? state0 : state1,
+        ),
         // Две колонки игроков
         Expanded(
           child: Row(
             children: [
               Expanded(
                 child: _buildPlayerColumn(
-                  theme, activePlayer, activeState, true,
+                  theme, player0, state0, isActive0,
                 ),
               ),
               Container(
@@ -616,7 +649,7 @@ class _GamePage501State extends State<GamePage501> {
               ),
               Expanded(
                 child: _buildPlayerColumn(
-                  theme, opponentPlayer, opponentState, false,
+                  theme, player1, state1, isActive1,
                 ),
               ),
             ],

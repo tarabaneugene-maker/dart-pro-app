@@ -14,7 +14,7 @@ echo "============================================"
 echo "[1/6] Adding SSH key..."
 mkdir -p ~/.ssh
 cat >> ~/.ssh/authorized_keys << 'SSHKEY'
-ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDFt/wpYeMvYbRU0PekpCta4zJCaJBZGRD/f0jV9wY5ujwn1tx20b0i1eZQFzsWAV+tPh+1CHk7CgNoDnnpfMIPrtZtBzVthMl20CF/XtE/ckaUc8bEUcTaURDFZfLdTj+weSjwT7Yn2+NhqwX0xuptUq91/xFDZIWcD1bTriFvqTlqkCc8Jfn4ogLlf/SsNnSEDokzsPt0+LN8nPXwsrAu2w9T5xiiAsplboQCNP41ULxFiEcIbauyQ3KNw1vSRbeuNyufISm79KR346L+EVpK9gmG89oVx3fpa4212dlmNpYX2X0WSAcA35wBt/7SKGnJylNg48r7DpONsi6Kuy6/DhxfyDh+Ih+AXGbs1ZXoFpriRCA1/+aRXhsJOW7bg71o33u76X1xI9zsbAgZrAOOGn1+a0ecE7faQ7evZitPAEuemjx8+VzUHyx5BNXE+sI/PmlzMQAOyjsFGO2iabUBUN3pCwFKvSdReXExdRnY3kChSD7bHRAhhArSsjx6t9ZvnZrpluQLvNFnsIW8N4iqxC6QWqwNNMjdIQDju1Gl+ItPgq7gVwcsW0GLNm4g3iDGq5nLHYjua1+OyNCNaOJAYs7VutxN9n0aNcfMEspJYqKFXvYaUy/VSbTtbTSBZlt9wR4XdhrYCieS2YxoI+InK0b99yOIHiODIH5zHXpJzQ== cloudru-dart-pro
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJPP2X3aACqOdc9zKTPBgZmLlnSe5pqSAlrB7V++ui+j cloudru
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMgQNlvwUePjtigSOU8CrNyPZoD5lgkuZvtCpBOWhRP Пользователь@DESKTOP-K5F9V9E
 SSHKEY
 chmod 600 ~/.ssh/authorized_keys
@@ -60,17 +60,17 @@ cd /opt/dart-pro-app
 
 # --- 5. Build and start Docker container ---
 echo "[5/6] Building and starting server..."
-cd /opt/dart-pro-app/server
+cd /opt/dart-pro-app
 
 # Create data directory for persistent DB
 mkdir -p /opt/dart-pro-data
 
 # Stop old container if exists
-docker compose down 2>/dev/null || true
 docker rm -f dart-pro-server 2>/dev/null || true
 
-# Build and run
-docker build -t dart-pro-server .
+# Build full-stack image (Flutter Web + Dart server)
+docker build -t dart-pro-server -f Dockerfile .
+
 docker run -d \
     --name dart-pro-server \
     --restart unless-stopped \
@@ -85,7 +85,7 @@ echo "  Server started on port 8080"
 # --- 6. Configure Caddy reverse proxy ---
 echo "[6/6] Configuring Caddy..."
 cat > /etc/caddy/Caddyfile << 'CADDY'
-176.123.164.149.nip.io {
+192.144.13.217.nip.io {
     reverse_proxy localhost:8080
 }
 CADDY
@@ -96,5 +96,5 @@ systemctl restart caddy
 echo ""
 echo "============================================"
 echo " Setup complete!"
-echo " Server: http://176.123.164.149.nip.io"
+echo " Server: http://192.144.13.217.nip.io"
 echo "============================================"

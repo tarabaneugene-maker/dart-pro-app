@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:uuid/uuid.dart';
 import '../models/room.dart';
+import '../utils/dart_utils.dart';
 
 /// Менеджер игровых комнат
 class GameRoomManager {
@@ -172,6 +173,14 @@ class GameRoomManager {
     if (playerIndex != room.currentPlayerIndex) return null;
 
     final currentScore = room.scores[playerIndex];
+
+    // Проверка: сумма должна быть достижима тремя дротиками
+    if (!isValidThreeDartScore(score)) {
+      return {
+        'type': 'bust',
+        'message': 'Невозможная сумма ($score) для трёх дротиков',
+      };
+    }
 
     if (score > currentScore) {
       return {

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:crypto/crypto.dart';
+import 'package:bcrypt/bcrypt.dart';
 import '../db/database.dart';
 import '../models/user.dart';
 
@@ -17,12 +17,27 @@ class AuthHandler {
   /// Регистрация нового пользователя
   /// Возвращает Map с результатом: {'success': true, 'token': '...', 'user': {...}}
   /// или {'success': false, 'error': '...'}
-  Map<String, dynamic> register(String login, String password) {
+  Map<String, dynamic> register(String login, String password, {String displayName = ''}) {
     if (login.length < 3) {
       return {'success': false, 'error': 'Логин должен быть не менее 3 символов'};
     }
-    if (password.length < 4) {
-      return {'success': false, 'error': 'Пароль должен быть не менее 4 символов'};
+    if (login.length > 20) {
+      return {'success': false, 'error': 'Логин должен быть не более 20 символов'};
+    }
+    if (password.length < 8) {
+      return {'success': false, 'error': 'Пароль должен быть не менее 8 символов'};
+    }
+    if (password.length > 64) {
+      return {'success': false, 'error': 'Пароль должен быть не более 64 символов'};
+    }
+    if (displayName.isEmpty) {
+      return {'success': false, 'error': 'Укажите отображаемое имя'};
+    }
+    if (displayName.length < 2) {
+      return {'success': false, 'error': 'Имя должно быть не менее 2 символов'};
+    }
+    if (displayName.length > 20) {
+      return {'success': false, 'error': 'Имя должно быть не более 20 символов'};
     }
 
     // Проверка на существующего пользователя
@@ -32,11 +47,12 @@ class AuthHandler {
     }
 
     final id = _generateId();
-    final passwordHash = _hashPassword(password);
+    final passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(logRounds: 10));
 
     final user = User(
       id: id,
       login: login,
+      displayName: displayName,
       passwordHash: passwordHash,
       createdAt: DateTime.now(),
     );
@@ -61,8 +77,7 @@ class AuthHandler {
       return {'success': false, 'error': 'Неверный логин или пароль'};
     }
 
-    final passwordHash = _hashPassword(password);
-    if (user.passwordHash != passwordHash) {
+    if (!BCrypt.checkpw(password, user.passwordHash)) {
       return {'success': false, 'error': 'Неверный логин или пароль'};
     }
 
@@ -105,10 +120,5 @@ class AuthHandler {
     final random = Random.secure();
     final bytes = List<int>.generate(32, (_) => random.nextInt(256));
     return base64Url.encode(bytes).replaceAll('=', '');
-  }
-
-  String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    return sha256.convert(bytes).toString();
   }
 }
