@@ -43,7 +43,7 @@ RUN cd server && dart pub get
 COPY server/lib/ ./server/lib/
 
 # Компилируем сервер
-RUN cd server && dart compile exe lib/main.dart -o /app/server
+RUN cd server && dart compile exe lib/main.dart -o /app/dart_pro_server
 
 # ---- Стадия 3: Финальный образ ----
 FROM dart:3.11-sdk
@@ -51,7 +51,7 @@ FROM dart:3.11-sdk
 WORKDIR /app
 
 # Копируем скомпилированный сервер
-COPY --from=server-build /app/server ./server
+COPY --from=server-build /app/dart_pro_server ./dart_pro_server
 
 # Копируем собранный Flutter Web
 COPY --from=flutter-build /app/build/web ./build/web
@@ -70,4 +70,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Запускаем сервер (он сам раздаёт статику из ../build/web)
-CMD ["./server"]
+CMD ["./dart_pro_server"]
