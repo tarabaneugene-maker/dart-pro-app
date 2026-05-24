@@ -48,6 +48,11 @@ RUN cd server && dart compile exe lib/main.dart -o /app/dart_pro_server
 # ---- Стадия 3: Финальный образ ----
 FROM dart:3.11-sdk
 
+# Устанавливаем sqlite3 для работы с БД
+RUN apt-get update -qq && \
+    apt-get install -y -qq libsqlite3-dev && \
+    apt-get clean
+
 WORKDIR /app
 
 # Копируем скомпилированный сервер
