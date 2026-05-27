@@ -99,6 +99,9 @@ class WebSocketBackend implements BackendService {
       // Если за время подключения появилось новое поколение — выходим
       if (gen != _connectionGeneration || _disposed) return;
 
+      // Если контроллер событий был закрыт (dispose), пересоздаём его
+      _ensureEventController();
+
       _connected = true;
       debugPrint('WebSocketBackend: подключено к $url');
 
@@ -205,6 +208,13 @@ class WebSocketBackend implements BackendService {
     _connected = false;
     _outbox.clear();
     // НЕ ставим _disposed = true — reconnect должен работать
+  }
+
+  /// Пересоздать _eventController, если он закрыт
+  void _ensureEventController() {
+    if (_eventController.isClosed) {
+      _eventController = StreamController<ServerEvent>.broadcast();
+    }
   }
 
   /// Внутренний метод для выполнения auth-запроса с защитой от гонок
