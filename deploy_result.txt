@@ -1,0 +1,146 @@
+﻿============================================
+ Dart Pro App тАФ Server Setup
+============================================
+[1/6] Adding SSH key...
+  OK
+[2/6] Installing Docker...
+  Docker already installed
+[3/6] Installing Caddy...
+  Caddy already installed
+[4/6] Cloning project...
+ssh : From https://github.com/tarabaneugene-maker/dart-pro-app
+строка:1 знак:1
++ ssh -o StrictHostKeyChecking=accept-new bombressor@192.144.13.217 'cu ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (From https://gi...er/dart-pro-app:String) [], RemoteExceptio 
+   n
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   16cbd6e..733b029  main       -> origin/main
+Updating 16cbd6e..733b029
+Fast-forward
+ git_status.txt                       |   1 +
+ lib/game/game_board_widget.dart      | 399 +++++++++++++++++++++++------------
+ lib/game/game_page_501.dart          |  53 +++--
+ lib/online/online_game_page_501.dart |  36 ++--
+ 4 files changed, 311 insertions(+), 178 deletions(-)
+ create mode 100644 git_status.txt
+[5/6] Building and starting server...
+dart-pro-server
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.36kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/dart:3.11-sdk
+#2 DONE 0.8s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [flutter-build  1/10] FROM docker.io/library/dart:3.11-sdk@sha256:2ed474dc085f267ca692261ce35b23a0ae039
+e317beebef854be886c8b57832d
+#4 resolve docker.io/library/dart:3.11-sdk@sha256:2ed474dc085f267ca692261ce35b23a0ae039e317beebef854be886c
+8b57832d 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 65.27kB done
+#5 DONE 0.0s
+
+#6 [flutter-build  5/10] WORKDIR /app
+#6 CACHED
+
+#7 [flutter-build  6/10] COPY pubspec.yaml pubspec.lock ./
+#7 CACHED
+
+#8 [flutter-build  4/10] RUN flutter config --enable-web
+#8 CACHED
+
+#9 [flutter-build  2/10] RUN apt-get update -qq &&     apt-get install -y -qq curl git unzip xz-utils zip 
+libglu1-mesa &&     apt-get clean
+#9 CACHED
+
+#10 [flutter-build  3/10] RUN git clone --depth 1 --branch stable https://github.com/flutter/flutter.git /
+opt/flutter
+#10 CACHED
+
+#11 [flutter-build  7/10] RUN flutter pub get
+#11 CACHED
+
+#12 [flutter-build  8/10] COPY lib/ ./lib/
+#12 DONE 0.0s
+
+#13 [flutter-build  9/10] COPY web/ ./web/
+#13 DONE 0.0s
+
+#14 [flutter-build 10/10] RUN flutter build web --release
+#14 0.213    Woah! You appear to be trying to run flutter as root.
+#14 0.213    We strongly recommend running the flutter tool without superuser privileges.
+#14 0.213   /
+#14 0.213 ЁЯУО
+#14 0.333 [1/1] Web SDK                                                    1,873ms
+#14 3.208 Compiling lib/main.dart for the Web...                          
+#14 37.86 Wasm dry run succeeded. Consider building and testing your application with the `--wasm` flag. S
+ee docs for more info: https://docs.flutter.dev/platform-integration/web/wasm
+#14 37.86 Use --no-wasm-dry-run to disable these warnings.
+#14 39.59 Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 1472 bytes (99.4% re
+duction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+#14 39.59 Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 11384 bytes 
+(99.3% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building 
+your app.
+#14 39.89 Compiling lib/main.dart for the Web...                             36.7s
+#14 39.89 тЬУ Built build/web
+#14 DONE 40.0s
+
+#15 [stage-2 2/5] RUN apt-get update -qq &&     apt-get install -y -qq libsqlite3-dev &&     apt-get clean
+#15 CACHED
+
+#16 [stage-2 3/5] WORKDIR /app
+#16 CACHED
+
+#17 [server-build 3/6] COPY server/pubspec.yaml server/pubspec.lock ./server/
+#17 CACHED
+
+#18 [server-build 5/6] COPY server/lib/ ./server/lib/
+#18 CACHED
+
+#19 [server-build 2/6] WORKDIR /app
+#19 CACHED
+
+#20 [server-build 4/6] RUN cd server && dart pub get
+#20 CACHED
+
+#21 [server-build 6/6] RUN cd server && dart compile exe lib/main.dart -o /app/dart_pro_server
+#21 CACHED
+
+#22 [stage-2 4/5] COPY --from=server-build /app/dart_pro_server ./dart_pro_server
+#22 CACHED
+
+#23 [stage-2 5/5] COPY --from=flutter-build /app/build/web ./build/web
+#23 DONE 0.1s
+
+#24 exporting to image
+#24 exporting layers
+#24 exporting layers 2.0s done
+#24 exporting manifest sha256:ae4817ad8ef4142984a64dc82a160343a76bceb89f8c35801cd1959739db4a4b 0.0s done
+#24 exporting config sha256:b446c1a13df234ff4f5b4c7d2aa3c1517fef8e828a896871c7666b32c12f9a45 0.0s done
+#24 exporting attestation manifest sha256:fceab067626d88b2eb0389470a582b5821ed4631ec63578c8b884e1838bfc5a3
+ 0.0s done
+#24 exporting manifest list sha256:f2daf5aaf485c73c7e8cfbbc61eeab30796c189fea691a0ee7951265ea10e84c
+#24 exporting manifest list sha256:f2daf5aaf485c73c7e8cfbbc61eeab30796c189fea691a0ee7951265ea10e84c 0.0s d
+one
+#24 naming to docker.io/library/dart-pro-server:latest done
+#24 unpacking to docker.io/library/dart-pro-server:latest
+#24 unpacking to docker.io/library/dart-pro-server:latest 0.3s done
+#24 DONE 2.5s
+3028216f5e19351162c14af275cb893d6a7a497c3e66beb9b41a9eb27c8f980e
+  Server started on port 9090
+[6/6] Configuring Caddy...
+
+============================================
+ Setup complete!
+ Server: https://dart-pro.ru
+============================================

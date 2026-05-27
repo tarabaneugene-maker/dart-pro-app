@@ -85,12 +85,12 @@ echo "  Server started on port 9090"
 # --- 6. Configure Caddy reverse proxy ---
 echo "[6/6] Configuring Caddy..."
 cat > /etc/caddy/Caddyfile << 'CADDY'
-dart-pro.ru {
+192.144.13.217.nip.io {
     reverse_proxy localhost:9090
 }
 
-www.dart-pro.ru {
-    redir https://dart-pro.ru{uri}
+www.192.144.13.217.nip.io {
+    redir https://192.144.13.217.nip.io{uri}
 }
 CADDY
 
@@ -100,5 +100,5 @@ systemctl restart caddy
 echo ""
 echo "============================================"
 echo " Setup complete!"
-echo " Server: https://dart-pro.ru"
+echo " Server: https://192.144.13.217.nip.io"
 echo "============================================"
