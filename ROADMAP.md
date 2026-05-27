@@ -86,6 +86,13 @@ server/                          # Серверная часть (Dart WebSocket
 - [ ] **Cricket** — игровая страница (доска, ввод, подсчёт)
 - [ ] **Тренировки** — доработка режимов
 
+### ✅ Исправлено (27.05.2026)
+- [x] **`_eventController.close()` в dispose()** — убран, контроллер живёт вечно (broadcast без слушателей безопасен)
+- [x] **`ensureConnected()` + `waitForAuth()` во все методы** — `requestJoin`, `joinByCode`, `acceptJoin`, `rejectJoin`, `sendThrow`, `leaveRoom`, `getLobby`, `enterLobby`, `leaveLobby` теперь ждут соединения и reauth
+- [x] **Cache-busting для смартфонов** — `.js`, `.wasm`, `.html` отдаются с `no-cache, no-store, must-revalidate`
+- [x] **Сервер не закрывает свой сокет** — `_registerClient` проверяет `oldWs == ws` и не убивает себя
+- [x] **auth_ok не пропускался** — убран `return` после `_pendingAuth!.complete()`, ивент доходит до страниц
+
 ### 📝 В плане
 - [ ] **Звуки и анимации** — бросок, попадание, победный лег
 - [ ] **Вынести общие виджеты** (PlayerScoreCard501, GameModeTile) в `widgets/`

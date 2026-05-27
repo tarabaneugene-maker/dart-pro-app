@@ -187,9 +187,9 @@ class GameServer {
     final file = File(filePath);
     if (file.existsSync()) {
       final mimeType = lookupMimeType(filePath) ?? 'application/octet-stream';
-      // JS и WASM файлы не кэшируем — Flutter Web обновляется часто
-      final isFlutterAsset = filePath.endsWith('.js') || filePath.endsWith('.wasm');
-      final cacheControl = isFlutterAsset ? 'no-cache' : 'public, max-age=3600';
+      // Вся Flutter-статика без кэша — браузер всегда проверяет свежесть
+      final isFlutterAsset = filePath.endsWith('.js') || filePath.endsWith('.wasm') || filePath.endsWith('.html');
+      final cacheControl = isFlutterAsset ? 'no-cache, no-store, must-revalidate' : 'public, max-age=3600';
       request.response
         ..statusCode = 200
         ..headers.contentType = ContentType.parse(mimeType)

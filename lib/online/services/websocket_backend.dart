@@ -312,22 +312,27 @@ class WebSocketBackend implements BackendService {
 
   @override
   Future<void> getLobby() async {
+    await ensureConnected();
     _send({'type': 'get_lobby'});
   }
 
   @override
   Future<void> enterLobby() async {
+    await ensureConnected();
     _send({'type': 'enter_lobby'});
   }
 
   @override
   Future<void> leaveLobby() async {
+    await ensureConnected();
     _send({'type': 'leave_lobby'});
   }
 
   @override
   Future<void> requestJoin(String roomId, String playerName,
       {double avg = 0}) async {
+    await ensureConnected();
+    await waitForAuth();
     _send({
       'type': 'request_join',
       'roomId': roomId,
@@ -338,17 +343,23 @@ class WebSocketBackend implements BackendService {
 
   @override
   Future<void> acceptJoin(String roomId) async {
+    await ensureConnected();
+    await waitForAuth();
     _send({'type': 'accept_join', 'roomId': roomId});
   }
 
   @override
   Future<void> rejectJoin(String roomId) async {
+    await ensureConnected();
+    await waitForAuth();
     _send({'type': 'reject_join', 'roomId': roomId});
   }
 
   @override
   Future<void> joinByCode(String code, String playerName,
       {double avg = 0}) async {
+    await ensureConnected();
+    await waitForAuth();
     _send({
       'type': 'join_by_code',
       'code': code,
@@ -359,11 +370,14 @@ class WebSocketBackend implements BackendService {
 
   @override
   Future<void> leaveRoom() async {
+    await ensureConnected();
     _send({'type': 'leave_room'});
   }
 
   @override
   Future<void> sendThrow(int score) async {
+    await ensureConnected();
+    await waitForAuth();
     _send({'type': 'throw', 'score': score});
   }
 
