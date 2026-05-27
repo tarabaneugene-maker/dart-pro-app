@@ -5,15 +5,14 @@ String resolveServerUrl() {
   const envUrl = String.fromEnvironment('SERVER_URL');
   if (envUrl.isNotEmpty) return envUrl;
   if (kIsWeb) {
-    // Для production web нужно передавать SERVER_URL через --dart-define
-    // flutter build web --dart-define=SERVER_URL=wss://your-app.up.railway.app/ws
     final hostname = Uri.base.host;
     final scheme = Uri.base.scheme;
     // Если страница загружена по HTTPS — используем WSS (production)
-    // Если по HTTP (тест со смартфона по локальной сети) — WS на порт 8080
     if (scheme == 'https') {
       return 'wss://$hostname/ws';
     }
+    // Для локального dev-сервера (HTTP) — Dart-сервер всегда на 8080
+    // Uri.base.port — это порт dev-сервера (например 5173), а не Dart-сервера
     return 'ws://$hostname:8080/ws';
   }
   return 'ws://localhost:8080/ws';

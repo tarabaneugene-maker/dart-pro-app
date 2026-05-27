@@ -55,6 +55,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
               backend: widget.backend,
               roomState: event.room,
               playerName: widget.playerName,
+              userId: widget.backend.currentUserId,
             ),
           ),
         );

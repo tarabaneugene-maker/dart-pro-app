@@ -242,6 +242,7 @@ abstract class BackendService {
 
   Stream<ServerEvent> get events;
   String? get savedToken;
+  String? get currentUserId;
   void saveToken(String token);
   void clearToken();
   void dispose();

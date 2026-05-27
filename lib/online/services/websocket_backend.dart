@@ -18,15 +18,17 @@ class WebSocketBackend implements BackendService {
   String? _lastUrl;
   bool _disposed = false;
 
-  // === НОВОЕ: защита от гонок ===
+  // Защита от гонок
   int _connectionGeneration = 0;
   StreamSubscription? _streamSub;
   final List<Map<String, dynamic>> _outbox = [];
 
-  // === НОВОЕ: request-response для auth ===
+  // Request-response для auth
   Completer<Map<String, dynamic>>? _pendingAuth;
   bool _authInProgress = false;
   Completer<void>? _authReady; // завершается когда reauth закончен
+  bool _reauthInProgress = false; // флаг что reauth уже идёт
+  String? _userId; // userId текущего пользователя
 
   static const _tokenKey = 'auth_token';
 
@@ -70,6 +72,9 @@ class WebSocketBackend implements BackendService {
 
   @override
   String? get savedToken => _token;
+
+  @override
+  String? get currentUserId => _userId;
 
   @override
   Future<void> connect(String url) async {
@@ -143,19 +148,36 @@ class WebSocketBackend implements BackendService {
   }
 
   /// A3: повторная авторизация после каждого connect/reconnect
+  /// Использует отдельный Completer, чтобы не конкурировать с _performAuth()
   Future<void> _reauthenticateAfterConnect() async {
     final token = _token;
     if (token == null || token.isEmpty) return;
+    
+    // Если reauth уже идёт — не запускаем второй
+    if (_reauthInProgress) return;
+    _reauthInProgress = true;
+    
     try {
-      final result = await authWithToken(token);
-      if (!result.success) {
-        debugPrint('WebSocketBackend: re-auth failed: ${result.error}');
-        clearToken();
-      } else {
+      // Отправляем auth напрямую, без _performAuth
+      final completer = Completer<Map<String, dynamic>>();
+      _pendingAuth = completer;
+      _authInProgress = true;
+      
+      _send({'type': 'auth', 'token': token});
+      
+      final message = await completer.future.timeout(const Duration(seconds: 10));
+      if (message['type'] == 'auth_ok') {
         debugPrint('WebSocketBackend: re-auth успешен');
+      } else {
+        debugPrint('WebSocketBackend: re-auth failed: ${message['message']}');
+        clearToken();
       }
     } catch (e) {
       debugPrint('WebSocketBackend: re-auth error: $e');
+    } finally {
+      _pendingAuth = null;
+      _authInProgress = false;
+      _reauthInProgress = false;
     }
   }
 
@@ -206,13 +228,17 @@ class WebSocketBackend implements BackendService {
       final message = await completer.future.timeout(const Duration(seconds: 10));
       if (message['type'] == 'auth_ok') {
         final token = message['token'] as String?;
+        final userId = message['userId'] as String?;
         if (saveTokenOnSuccess && token != null) {
           _token = token;
           _saveToken(token);
         }
+        if (userId != null) {
+          _userId = userId;
+        }
         return AuthResult(
           success: true,
-          userId: message['userId'] as String?,
+          userId: userId,
           login: message['login'] as String?,
           displayName: message['displayName'] as String?,
           token: token,
@@ -517,6 +543,10 @@ class WebSocketBackend implements BackendService {
       case 'player_timeout':
         _eventController
             .add(PlayerTimeoutEvent(message['userId'] as String));
+        break;
+
+      case 'bust':
+        _eventController.add(ErrorEvent(message['message'] as String? ?? 'Перебор!'));
         break;
 
       case 'pong':

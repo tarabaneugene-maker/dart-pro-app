@@ -331,16 +331,34 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
   StreamSubscription? _subscription;
   RoomPlayerInfo? _pendingPlayer;
   String? _error;
+  bool _disconnected = false;
+  Timer? _connectionCheckTimer;
 
   @override
   void initState() {
     super.initState();
     _subscription = widget.backend.events.listen(_handleEvent);
+    // Проверка соединения каждые 5 секунд
+    _connectionCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      if (!widget.backend.isConnected && !_disconnected) {
+        setState(() {
+          _disconnected = true;
+          _error = 'Соединение с сервером потеряно. Попытка переподключения...';
+        });
+      } else if (widget.backend.isConnected && _disconnected) {
+        setState(() {
+          _disconnected = false;
+          _error = null;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _connectionCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -359,6 +377,7 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
               backend: widget.backend,
               roomState: e.room,
               playerName: widget.playerName,
+              userId: widget.backend.currentUserId,
             ),
           ),
         );

@@ -11,12 +11,14 @@ class OnlineGamePage501 extends StatefulWidget {
   final BackendService backend;
   final RoomState roomState;
   final String playerName;
+  final String? userId; // userId текущего игрока (для надёжной идентификации)
 
   const OnlineGamePage501({
     super.key,
     required this.backend,
     required this.roomState,
     required this.playerName,
+    this.userId,
   });
 
   @override
@@ -38,9 +40,17 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   void initState() {
     super.initState();
     _room = widget.roomState;
-    _myIndex = _room.players.indexWhere(
-      (p) => p.name == widget.playerName,
-    );
+    // Ищем себя по userId (если есть), иначе по имени
+    if (widget.userId != null && widget.userId!.isNotEmpty) {
+      _myIndex = _room.players.indexWhere(
+        (p) => p.userId == widget.userId,
+      );
+    }
+    if (_myIndex == -1) {
+      _myIndex = _room.players.indexWhere(
+        (p) => p.name == widget.playerName,
+      );
+    }
     if (_myIndex == -1) _myIndex = 0;
     _updateTurn();
 

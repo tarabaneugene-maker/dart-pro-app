@@ -4,6 +4,7 @@ import 'services/backend_service.dart';
 import 'auth/login_page.dart';
 import 'room_detail_page.dart';
 import 'room_creator_page.dart';
+import 'online_game_page_501.dart';
 import 'profile/profile_page.dart';
 import '../main.dart';
 
@@ -54,16 +55,35 @@ class _LobbyPageState extends State<LobbyPage> {
           _loading = false;
         });
         break;
+      case GameStartedEvent e:
+        // Игра началась (например, после join_by_code для приватной комнаты)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => OnlineGamePage501(
+              backend: widget.backend,
+              roomState: e.room,
+              playerName: widget.displayName,
+              userId: widget.backend.currentUserId,
+            ),
+          ),
+        );
+        break;
+      case JoinRequestedEvent e:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        break;
       case ErrorEvent e:
-        if (mounted) {
-          // E2: если «Не авторизован» — предложить перелогиниться
-          if (e.message.contains('Не авторизован') || e.message.contains('не авторизован')) {
-            _showReauthSnackBar();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(e.message)),
-            );
-          }
+        // E2: если «Не авторизован» — предложить перелогиниться
+        if (e.message.contains('Не авторизован') || e.message.contains('не авторизован')) {
+          _showReauthSnackBar();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
         }
         break;
       default:

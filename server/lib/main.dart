@@ -74,7 +74,7 @@ class GameServer {
 
   static const _heartbeatInterval = Duration(seconds: 15);
   static const _timeoutCheckInterval = Duration(seconds: 30);
-  static const _legsToWin = 3;
+  // _legsToWin теперь берётся из gameParams комнаты
 
   Future<void> start({int? port, String? dbPath}) async {
     // Railway передаёт порт через переменную окружения PORT
@@ -574,13 +574,15 @@ class GameServer {
       return;
     }
 
-    final result = _rooms.processThrow(userId, score, _legsToWin);
+    // Берём legsToWin из gameParams комнаты (по умолчанию 3)
+    final room = _rooms.getPlayerRoom(userId);
+    final legsToWin = (room?.gameParams?['legs'] as int?) ?? 3;
+    final result = _rooms.processThrow(userId, score, legsToWin);
     if (result == null) {
       _send(ws, {'type': 'error', 'message': 'Неверный ход'});
       return;
     }
 
-    final room = _rooms.getPlayerRoom(userId);
     if (room == null) return;
 
     if (result['type'] == 'match_won') {
