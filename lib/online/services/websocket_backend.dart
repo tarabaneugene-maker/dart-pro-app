@@ -8,7 +8,7 @@ import 'backend_service.dart';
 /// Реализация BackendService через WebSocket
 class WebSocketBackend implements BackendService {
   WebSocketChannel? _channel;
-  final StreamController<ServerEvent> _eventController =
+  StreamController<ServerEvent> _eventController =
       StreamController<ServerEvent>.broadcast();
 
   Timer? _pingTimer;
