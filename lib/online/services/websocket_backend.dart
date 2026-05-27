@@ -437,7 +437,8 @@ class WebSocketBackend implements BackendService {
     if (_pendingAuth != null && !_pendingAuth!.isCompleted) {
       if (type == 'auth_ok' || type == 'error') {
         _pendingAuth!.complete(message);
-        return;
+        // НЕ делаем return — ивент должен дойти до _handleMessageSafe,
+        // чтобы страницы получили AuthOkEvent
       }
     }
 

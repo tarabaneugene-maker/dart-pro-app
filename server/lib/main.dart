@@ -630,6 +630,10 @@ class GameServer {
   void _registerClient(WebSocketChannel ws, String userId) {
     final oldWs = _clients[userId];
     if (oldWs != null) {
+      if (oldWs == ws) {
+        // Тот же сокет — не закрываем себя
+        return;
+      }
       _clientUsers.remove(oldWs);
       oldWs.sink.close();
     }
