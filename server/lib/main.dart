@@ -474,10 +474,26 @@ class GameServer {
       'room': room.toJson(),
     });
 
+    // Уведомляем всех оставшихся pendingPlayers, что игра началась без них
+    for (final pending in room.pendingPlayers) {
+      final pendingWs = _clients[pending.userId];
+      if (pendingWs != null) {
+        _send(pendingWs, {
+          'type': 'join_rejected',
+          'roomId': room.id,
+          'creatorName': room.creator?.name ?? 'Создатель',
+          'message': 'Игра началась без вас',
+        });
+      }
+    }
+    // Очищаем pendingPlayers
+    room.pendingPlayers.clear();
+
     // Обновляем лобби — комната исчезла из списка
     _broadcastLobbyUpdate();
 
     print('🎮 Игра началась в комнате ${room.code}');
+
   }
 
   void _handleRejectJoin(WebSocketChannel ws, Map<String, dynamic> message) {

@@ -371,3 +371,4 @@ Cricket           ██░░░░░░░░░░░░░░░░░░ 1
   - `server/setup.sh` — bash-скрипт для деплоя с VPS (git pull → docker build → docker run)
   - `Dockerfile` — multi-stage сборка: Flutter Web + Dart сервер в один образ
   - `.github/workflows/deploy.yml` — **НЕ ИСПОЛЬЗУЕТСЯ** (Vercel не нужен, всё на VPS)
+- **Исправление ConcurrentModificationError** — `_broadcastLobbyUpdate()` теперь использует `_lobbyClients.toList()` для безопасной итерации. Раньше удаление битого сокета во время цикла ломало авто-обновление лобби

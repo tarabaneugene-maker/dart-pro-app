@@ -74,19 +74,23 @@ docker build -t dart-pro-server -f Dockerfile .
 docker run -d \
     --name dart-pro-server \
     --restart unless-stopped \
-    -p 127.0.0.1:8080:8080 \
+    -p 127.0.0.1:9090:9090 \
     -v /opt/dart-pro-data:/app/data \
-    -e PORT=8080 \
+    -e PORT=9090 \
     -e JWT_SECRET="$(openssl rand -hex 32)" \
     dart-pro-server
 
-echo "  Server started on port 8080"
+echo "  Server started on port 9090"
 
 # --- 6. Configure Caddy reverse proxy ---
 echo "[6/6] Configuring Caddy..."
 cat > /etc/caddy/Caddyfile << 'CADDY'
-192.144.13.217.nip.io {
-    reverse_proxy localhost:8080
+dart-pro.ru {
+    reverse_proxy localhost:9090
+}
+
+www.dart-pro.ru {
+    redir https://dart-pro.ru{uri}
 }
 CADDY
 
@@ -96,5 +100,5 @@ systemctl restart caddy
 echo ""
 echo "============================================"
 echo " Setup complete!"
-echo " Server: http://192.144.13.217.nip.io"
+echo " Server: https://dart-pro.ru"
 echo "============================================"

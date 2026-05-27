@@ -5,6 +5,7 @@ import '../models/game_enums.dart';
 import '../models/player_config.dart';
 import '../bots/dart_bot_501.dart';
 import '../utils/dart_utils.dart';
+import 'game_board_widget.dart';
 
 /// Состояние одного игрока в игре 501
 class _PlayerGameState {
@@ -47,13 +48,13 @@ class _GamePage501State extends State<GamePage501> {
   bool _remainderMode = false;
 
   // --- Состояние ввода (Режим Б: Каждый бросок) ---
-  final List<_DartEntry> _dartEntries = [
-    _DartEntry(),
-    _DartEntry(),
-    _DartEntry(),
+  final List<DartEntryDisplay> _dartEntries = [
+    const DartEntryDisplay(),
+    const DartEntryDisplay(),
+    const DartEntryDisplay(),
   ];
   int _currentDartIndex = 0;
-  String _selectedModifier = 'S'; // S, D, T
+  String _selectedModifier = 'S';
 
   // --- Undo стек ---
   final List<_UndoEntry> _undoStack = [];
@@ -184,7 +185,6 @@ class _GamePage501State extends State<GamePage501> {
     if (widget.settings.finishType == FinishType.doubleOut &&
         currentScore - value == 0 &&
         _currentInputMode == InputMode.oneDart) {
-      // Проверяем, что последний введённый бросок — дабл
       final lastEntry = _dartEntries[_currentDartIndex > 0 ? _currentDartIndex - 1 : 0];
       if (!lastEntry.isEmpty && lastEntry.modifier != 'D') {
         if (!isBot) {
@@ -242,7 +242,6 @@ class _GamePage501State extends State<GamePage501> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              // Подтверждаем bust — передаём ход
               final state = _players[_currentPlayerIndex];
               setState(() {
                 state.legHistory.add(0);
@@ -262,14 +261,12 @@ class _GamePage501State extends State<GamePage501> {
     final state = _players[_currentPlayerIndex];
     state.legsWon++;
 
-    // Собираем счёт легов
     final legScores = _players
         .asMap()
         .map((i, p) => MapEntry(i, p.legsWon))
         .values
         .join('-');
 
-    // СНАЧАЛА проверка на выигрыш сета
     bool setWon = false;
     if (state.legsWon >= widget.settings.legs) {
       state.setsWon++;
@@ -277,7 +274,6 @@ class _GamePage501State extends State<GamePage501> {
       setWon = true;
     }
 
-    // ПОТОМ проверка на выигрыш матча (по сетам)
     if (state.setsWon >= widget.settings.sets) {
       _showMatchWonDialog(state.setsWon, legScores);
       return;
@@ -329,7 +325,7 @@ class _GamePage501State extends State<GamePage501> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pop(); // Выход из игры
+              Navigator.of(context).pop();
             },
             child: const Text('Выйти'),
           ),
@@ -342,15 +338,19 @@ class _GamePage501State extends State<GamePage501> {
     setState(() {
       _currentPlayerIndex =
           (_currentPlayerIndex + 1) % widget.settings.players.length;
-      _inputBuffer = '';
-      _remainderMode = false;
-      for (int i = 0; i < 3; i++) {
-        _dartEntries[i] = _DartEntry();
-      }
-      _currentDartIndex = 0;
-      _selectedModifier = 'S';
+      _resetInput();
     });
     _checkBotTurn();
+  }
+
+  void _resetInput() {
+    _inputBuffer = '';
+    _remainderMode = false;
+    for (int i = 0; i < 3; i++) {
+      _dartEntries[i] = const DartEntryDisplay();
+    }
+    _currentDartIndex = 0;
+    _selectedModifier = 'S';
   }
 
   double _calculateAverage(_PlayerGameState state) {
@@ -412,7 +412,6 @@ class _GamePage501State extends State<GamePage501> {
     if (value == null) return;
 
     if (_remainderMode) {
-      // Режим "Остаток": введена разница, вычисляем сумму
       final state = _players[_currentPlayerIndex];
       final computed = state.score - value;
       if (computed > 0) {
@@ -436,16 +435,14 @@ class _GamePage501State extends State<GamePage501> {
     if (number == null || number < 0 || number > 25) return;
     if (_currentDartIndex >= 3) return;
 
-    // Bull (25) может быть только Single или Double, не Triple
-    final modifier = (number == 25 && _selectedModifier == 'T') ? 'S' : _selectedModifier;
+    final modifier =
+        (number == 25 && _selectedModifier == 'T') ? 'S' : _selectedModifier;
 
     setState(() {
-      // Фиксируем бросок с текущим модификатором
-      _dartEntries[_currentDartIndex] = _DartEntry(
+      _dartEntries[_currentDartIndex] = DartEntryDisplay(
         modifier: modifier,
         number: number,
       );
-      // Переходим к следующему броску, сбрасываем модификатор
       if (_currentDartIndex < 2) {
         _currentDartIndex++;
         _selectedModifier = 'S';
@@ -456,12 +453,11 @@ class _GamePage501State extends State<GamePage501> {
   void _onDartClear() {
     setState(() {
       if (_currentDartIndex > 0 || !_dartEntries[_currentDartIndex].isEmpty) {
-        // Стираем последний введённый бросок
         if (!_dartEntries[_currentDartIndex].isEmpty) {
-          _dartEntries[_currentDartIndex] = _DartEntry();
+          _dartEntries[_currentDartIndex] = const DartEntryDisplay();
         } else if (_currentDartIndex > 0) {
           _currentDartIndex--;
-          _dartEntries[_currentDartIndex] = _DartEntry();
+          _dartEntries[_currentDartIndex] = const DartEntryDisplay();
         }
         _selectedModifier = 'S';
       }
@@ -475,29 +471,18 @@ class _GamePage501State extends State<GamePage501> {
   }
 
   void _onSubmitDart() {
-    // Проверяем, что хотя бы один бросок введён
     if (_dartEntries.every((e) => e.isEmpty)) return;
 
-    final total = _calculateDartTotal();
+    final total = _dartEntries.fold<int>(0, (sum, e) => sum + e.score);
     _submitScore(total, isBot: false);
 
     setState(() {
       for (int i = 0; i < 3; i++) {
-        _dartEntries[i] = _DartEntry();
+        _dartEntries[i] = const DartEntryDisplay();
       }
       _currentDartIndex = 0;
       _selectedModifier = 'S';
     });
-  }
-
-  int _calculateDartTotal() {
-    int total = 0;
-    for (final entry in _dartEntries) {
-      if (!entry.isEmpty) {
-        total += entry.score;
-      }
-    }
-    return total;
   }
 
   // ===================================================================
@@ -522,17 +507,50 @@ class _GamePage501State extends State<GamePage501> {
         child: Column(
           children: [
             _buildStatusBar(theme),
-            // Верхняя часть: плашка + колонки + строка бросков/быстрые суммы
+            // Табло (общий виджет)
             Expanded(
               flex: 4,
-              child: _buildInfoBlock(theme),
+              child: GameScoreBoard(state: _buildBoardState()),
             ),
-            // Нижняя часть: блок ввода
+            // Строка бросков / быстрые суммы (общий виджет)
+            GameDartStatusBar(
+              dartEntries: _dartEntries,
+              currentDartIndex: _currentDartIndex,
+              isSumMode: _currentInputMode == InputMode.threeDarts,
+              onQuickSum: _currentInputMode == InputMode.threeDarts
+                  ? _onQuickSum
+                  : null,
+            ),
+            // Панель ввода (общий виджет)
             Expanded(
               flex: 6,
               child: _currentInputMode == InputMode.threeDarts
-                  ? _buildSumInputPanel(theme)
-                  : _buildDartInputPanel(theme),
+                  ? GameDartInputPanel(
+                      isSumMode: true,
+                      inputBuffer: _inputBuffer,
+                      remainderMode: _remainderMode,
+                      dartEntries: _dartEntries,
+                      currentDartIndex: _currentDartIndex,
+                      selectedModifier: _selectedModifier,
+                      onDigit: _onNumpadDigit,
+                      onClear: _onNumpadClear,
+                      onSubmit: _onSubmitSum,
+                      onToggleRemainder: _onRemainderMode,
+                      onModifierSelect: _onModifierSelect,
+                    )
+                  : GameDartInputPanel(
+                      isSumMode: false,
+                      inputBuffer: _inputBuffer,
+                      remainderMode: _remainderMode,
+                      dartEntries: _dartEntries,
+                      currentDartIndex: _currentDartIndex,
+                      selectedModifier: _selectedModifier,
+                      onDigit: _onDartDigit,
+                      onClear: _onDartClear,
+                      onSubmit: _onSubmitDart,
+                      onToggleRemainder: _onRemainderMode,
+                      onModifierSelect: _onModifierSelect,
+                    ),
             ),
           ],
         ),
@@ -550,15 +568,47 @@ class _GamePage501State extends State<GamePage501> {
               child: Column(
                 children: [
                   _buildStatusBar(theme),
-                  Expanded(child: _buildInfoBlock(theme)),
+                  Expanded(child: GameScoreBoard(state: _buildBoardState())),
+                  GameDartStatusBar(
+                    dartEntries: _dartEntries,
+                    currentDartIndex: _currentDartIndex,
+                    isSumMode: _currentInputMode == InputMode.threeDarts,
+                    onQuickSum: _currentInputMode == InputMode.threeDarts
+                        ? _onQuickSum
+                        : null,
+                  ),
                 ],
               ),
             ),
             Expanded(
               flex: 6,
               child: _currentInputMode == InputMode.threeDarts
-                  ? _buildSumInputPanel(theme)
-                  : _buildDartInputPanel(theme),
+                  ? GameDartInputPanel(
+                      isSumMode: true,
+                      inputBuffer: _inputBuffer,
+                      remainderMode: _remainderMode,
+                      dartEntries: _dartEntries,
+                      currentDartIndex: _currentDartIndex,
+                      selectedModifier: _selectedModifier,
+                      onDigit: _onNumpadDigit,
+                      onClear: _onNumpadClear,
+                      onSubmit: _onSubmitSum,
+                      onToggleRemainder: _onRemainderMode,
+                      onModifierSelect: _onModifierSelect,
+                    )
+                  : GameDartInputPanel(
+                      isSumMode: false,
+                      inputBuffer: _inputBuffer,
+                      remainderMode: _remainderMode,
+                      dartEntries: _dartEntries,
+                      currentDartIndex: _currentDartIndex,
+                      selectedModifier: _selectedModifier,
+                      onDigit: _onDartDigit,
+                      onClear: _onDartClear,
+                      onSubmit: _onSubmitDart,
+                      onToggleRemainder: _onRemainderMode,
+                      onModifierSelect: _onModifierSelect,
+                    ),
             ),
           ],
         ),
@@ -566,9 +616,30 @@ class _GamePage501State extends State<GamePage501> {
     );
   }
 
-  // ===================================================================
-  // СТРОКА СТАТУСА
-  // ===================================================================
+  GameBoardState _buildBoardState() {
+    return GameBoardState(
+      players: widget.settings.players.asMap().entries.map((entry) {
+        final i = entry.key;
+        final p = entry.value;
+        final state = _players[i];
+        return PlayerBoardInfo(
+          name: p.name,
+          score: state.score,
+          legsWon: state.legsWon,
+          setsWon: state.setsWon,
+          average: state.average,
+          lastApproach: state.lastApproach,
+          isActive: _currentPlayerIndex == i,
+        );
+      }).toList(),
+      currentPlayerIndex: _currentPlayerIndex,
+      gameType: widget.settings.gameType.name,
+      sets: widget.settings.sets,
+      legs: widget.settings.legs,
+      isDoubleOut: widget.settings.finishType == FinishType.doubleOut,
+      isDoubleIn: widget.settings.startType == StartType.doubleIn,
+    );
+  }
 
   Widget _buildStatusBar(ThemeData theme) {
     return Container(
@@ -581,14 +652,12 @@ class _GamePage501State extends State<GamePage501> {
       ),
       child: Row(
         children: [
-          // Кнопка назад
           IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
             tooltip: 'Выйти из игры',
           ),
           const SizedBox(width: 4),
-          // Параметры игры
           Text(
             '${widget.settings.gameType.name} | '
             '${widget.settings.sets}с | '
@@ -599,6 +668,12 @@ class _GamePage501State extends State<GamePage501> {
             ),
           ),
           const Spacer(),
+          // Undo
+          IconButton(
+            icon: const Icon(Icons.undo),
+            onPressed: _undoStack.isEmpty ? null : _undo,
+            tooltip: 'Отменить ход',
+          ),
           // Статистика (заглушка)
           IconButton(
             icon: const Icon(Icons.bar_chart_outlined),
@@ -611,741 +686,9 @@ class _GamePage501State extends State<GamePage501> {
       ),
     );
   }
-
-  // ===================================================================
-  // БЛОК ИНФОРМАЦИИ (верхняя половина)
-  // ===================================================================
-
-  Widget _buildInfoBlock(ThemeData theme) {
-    // Фиксированное расположение: левая колонка = игрок 0 (начинающий),
-    // правая колонка = игрок 1. Активность показываем подсветкой.
-    final player0 = widget.settings.players[0];
-    final player1 = widget.settings.players[1];
-    final state0 = _players[0];
-    final state1 = _players[1];
-    final isActive0 = _currentPlayerIndex == 0;
-    final isActive1 = _currentPlayerIndex == 1;
-
-    return Column(
-      children: [
-        // Плашка активного игрока (компактная)
-        _buildActivePlayerBanner(
-          theme,
-          isActive0 ? player0 : player1,
-          isActive0 ? state0 : state1,
-        ),
-        // Две колонки игроков
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildPlayerColumn(
-                  theme, player0, state0, isActive0,
-                ),
-              ),
-              Container(
-                width: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              Expanded(
-                child: _buildPlayerColumn(
-                  theme, player1, state1, isActive1,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Строка бросков (для Режима Б) или быстрые суммы (для Режима А)
-        _buildDartStatusBar(theme),
-      ],
-    );
-  }
-
-  Widget _buildActivePlayerBanner(
-    ThemeData theme,
-    PlayerConfig player,
-    _PlayerGameState state,
-  ) {
-    final showCheckout = state.score <= 170 && state.score > 0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  player.name,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (showCheckout)
-                  Text(
-                    _getCheckoutHint(state.score),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Text(
-            '${state.score}',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-              height: 1.0,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getCheckoutHint(int score) {
-    const checkouts = {
-      170: 'T20-T20-DBull',
-      167: 'T20-T19-DBull',
-      164: 'T20-T18-DBull',
-      161: 'T20-T17-DBull',
-      160: 'T20-T20-D20',
-      158: 'T20-T20-D19',
-      157: 'T20-T19-D20',
-      156: 'T20-T20-D18',
-      155: 'T20-T19-D19',
-      154: 'T20-T18-D20',
-      153: 'T20-T19-D18',
-      152: 'T20-T20-D16',
-      151: 'T20-T17-D20',
-      150: 'T20-T18-D18',
-      149: 'T20-T19-D16',
-      148: 'T20-T20-D14',
-      147: 'T20-T17-D18',
-      146: 'T20-T18-D16',
-      145: 'T20-T15-D20',
-      144: 'T20-T20-D12',
-      143: 'T20-T17-D16',
-      142: 'T20-T14-D20',
-      141: 'T20-T15-D18',
-      140: 'T20-T20-D10',
-      139: 'T19-T14-D20',
-      138: 'T20-T18-D12',
-      137: 'T20-T19-D10',
-      136: 'T20-T20-D8',
-      135: 'T20-T15-D20',
-      134: 'T20-T14-D16',
-      133: 'T20-T19-D8',
-      132: 'T20-T16-D12',
-      131: 'T20-T13-D20',
-      130: 'T20-T20-D5',
-      129: 'T19-T16-D12',
-      128: 'T18-T14-D16',
-      127: 'T19-T14-D20',
-      126: 'T19-T15-D12',
-      125: 'T18-T13-D20',
-      124: 'T20-T16-D8',
-      123: 'T19-T14-D12',
-      122: 'T18-T16-D10',
-      121: 'T20-T11-D20',
-      120: 'T20-S20-D20',
-      119: 'T19-T12-D13',
-      118: 'T20-S18-D20',
-      117: 'T20-S17-D20',
-      116: 'T20-S16-D20',
-      115: 'T20-S15-D20',
-      114: 'T20-S14-D20',
-      113: 'T20-S13-D20',
-      112: 'T20-S12-D20',
-      111: 'T20-S11-D20',
-      110: 'T20-S10-D20',
-      109: 'T20-S9-D20',
-      108: 'T20-S8-D20',
-      107: 'T19-S10-D20',
-      106: 'T20-S6-D20',
-      105: 'T20-S5-D20',
-      104: 'T20-S4-D20',
-      103: 'T20-S3-D20',
-      102: 'T20-S2-D20',
-      101: 'T17-DBull',
-      100: 'T20-D20',
-      99: 'T19-D21',
-      98: 'T20-D19',
-      97: 'T19-D20',
-      96: 'T20-D18',
-      95: 'T19-D19',
-      94: 'T18-D20',
-      93: 'T19-D18',
-      92: 'T20-D16',
-      91: 'T17-D20',
-      90: 'T20-D15',
-      89: 'T19-D16',
-      88: 'T20-D14',
-      87: 'T17-D18',
-      86: 'T18-D16',
-      85: 'T15-D20',
-      84: 'T20-D12',
-      83: 'T17-D16',
-      82: 'T14-D20',
-      81: 'T19-D12',
-      80: 'T20-D10',
-      79: 'T19-D11',
-      78: 'T18-D12',
-      77: 'T19-D10',
-      76: 'T20-D8',
-      75: 'T17-D12',
-      74: 'T14-D16',
-      73: 'T19-D8',
-      72: 'T16-D12',
-      71: 'T13-D16',
-      70: 'T20-D5',
-      69: 'T19-D6',
-      68: 'T20-D4',
-      67: 'T17-D8',
-      66: 'T10-D18',
-      65: 'T15-D10',
-      64: 'T16-D8',
-      63: 'T13-D12',
-      62: 'T10-D16',
-      61: 'T15-D8',
-      60: 'S20-D20',
-      59: 'S19-D20',
-      58: 'S18-D20',
-      57: 'S17-D20',
-      56: 'S16-D20',
-      55: 'S15-D20',
-      54: 'S14-D20',
-      53: 'S13-D20',
-      52: 'S12-D20',
-      51: 'S11-D20',
-      50: 'S10-D20',
-      49: 'S9-D20',
-      48: 'S8-D20',
-      47: 'S7-D20',
-      46: 'S6-D20',
-      45: 'S5-D20',
-      44: 'S4-D20',
-      43: 'S3-D20',
-      42: 'S2-D20',
-      41: 'S1-D20',
-      40: 'D20',
-      39: 'S7-D16',
-      38: 'D19',
-      37: 'S5-D16',
-      36: 'D18',
-      35: 'S3-D16',
-      34: 'D17',
-      33: 'S1-D16',
-      32: 'D16',
-      31: 'S15-D8',
-      30: 'D15',
-      29: 'S13-D8',
-      28: 'D14',
-      27: 'S11-D8',
-      26: 'D13',
-      25: 'S9-D8',
-      24: 'D12',
-      23: 'S7-D8',
-      22: 'D11',
-      21: 'S5-D8',
-      20: 'D10',
-      19: 'S3-D8',
-      18: 'D9',
-      17: 'S1-D8',
-      16: 'D8',
-      15: 'S7-D4',
-      14: 'D7',
-      13: 'S5-D4',
-      12: 'D6',
-      11: 'S3-D4',
-      10: 'D5',
-      9: 'S1-D4',
-      8: 'D4',
-      7: 'S3-D2',
-      6: 'D3',
-      5: 'S1-D2',
-      4: 'D2',
-      3: 'S1-D1',
-      2: 'D1',
-    };
-    return checkouts[score] ?? 'Закрытие';
-  }
-
-  /// Строка бросков (Режим Б) или быстрые суммы (Режим А) — в одну строку
-  Widget _buildDartStatusBar(ThemeData theme) {
-    if (_currentInputMode == InputMode.threeDarts) {
-      // Быстрые суммы в одну строку
-      const sums = [45, 60, 81, 85, 100, 140];
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          border: Border(
-            top: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: Row(
-          children: sums
-              .map((v) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _QuickSumButton(
-                        value: v,
-                        onTap: () => _onQuickSum(v),
-                      ),
-                    ),
-                  ))
-              .toList(),
-        ),
-      );
-    } else {
-      // Строка бросков в одну строку: 1:__  2:__  3:__  = 0
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          border: Border(
-            top: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: Row(
-          children: [
-            for (int i = 0; i < 3; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Text(
-                '${i + 1}:${_dartEntries[i].display}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight:
-                      i == _currentDartIndex ? FontWeight.bold : FontWeight.normal,
-                  color: i == _currentDartIndex
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-            const Spacer(),
-            Text(
-              '= ${_calculateDartTotal()}',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  Widget _buildPlayerColumn(
-    ThemeData theme,
-    PlayerConfig player,
-    _PlayerGameState state,
-    bool isActive,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Имя + счётчик легов
-          GestureDetector(
-            onTap: () {
-              // TODO: тоггл average
-            },
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    player.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (state.legsWon > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${state.legsWon}л',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Average
-          if (state.average != null)
-            Text(
-              'ср: ${state.average!.toStringAsFixed(1)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          const Spacer(),
-          // Остаток крупно
-          Row(
-            children: [
-              Text(
-                '${state.score}',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? theme.colorScheme.primary : null,
-                  height: 1.0,
-                ),
-              ),
-              const Spacer(),
-              // Дротиков в леге
-              Text(
-                '⚡${state.dartsInLeg}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // Последний подход
-          if (state.lastApproach != null)
-            Text(
-              '← ${state.lastApproach}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ===================================================================
-  // ПАНЕЛЬ ВВОДА — Режим А: Сумма подхода
-  // ===================================================================
-
-  Widget _buildSumInputPanel(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        children: [
-          // Строка ввода
-          _buildInputRow(theme),
-          const SizedBox(height: 8),
-          // Numpad (крупнее)
-          Expanded(
-            child: _buildNumpad(theme),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputRow(ThemeData theme) {
-    final state = _players[_currentPlayerIndex];
-    final displayValue = _remainderMode && _inputBuffer.isNotEmpty
-        ? '${state.score} - $_inputBuffer = ${state.score - int.parse(_inputBuffer)}'
-        : _inputBuffer.isNotEmpty
-            ? _inputBuffer
-            : 'Ввод';
-
-    return Row(
-      children: [
-        // Кнопка Остаток (равноширокая с numpad)
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: _ActionButton(
-              label: 'Ост.',
-              isActive: _remainderMode,
-              onTap: _onRemainderMode,
-              theme: theme,
-            ),
-          ),
-        ),
-        // Поле ввода (равноширокое)
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-              ),
-              child: Text(
-                displayValue,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _inputBuffer.isEmpty
-                      ? theme.colorScheme.onSurfaceVariant
-                      : theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Стереть (равноширокий)
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: _ActionButton(
-              label: '⌫',
-              isActive: false,
-              onTap: _onNumpadClear,
-              theme: theme,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNumpad(ThemeData theme) {
-    return Column(
-      children: [
-        // Ряд 1-3
-        for (int row = 0; row < 3; row++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                for (int col = 1; col <= 3; col++)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _NumpadButton(
-                        label: '${row * 3 + col}',
-                        onTap: () => _onNumpadDigit('${row * 3 + col}'),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        // Ряд 4: Вернуть, 0, OK
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _ActionButton(
-                    label: '↩ Вернуть',
-                    isActive: false,
-                    onTap: _undo,
-                    theme: theme,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _NumpadButton(
-                    label: '0',
-                    onTap: () => _onNumpadDigit('0'),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _ActionButton(
-                    label: 'OK',
-                    isActive: true,
-                    onTap: _onSubmitSum,
-                    theme: theme,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===================================================================
-  // ПАНЕЛЬ ВВОДА — Режим Б: Каждый бросок
-  // ===================================================================
-
-  Widget _buildDartInputPanel(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        children: [
-          // Модификаторы
-          _buildModifierRow(theme),
-          const SizedBox(height: 8),
-          // Numpad 1-20 + 25 (крупнее)
-          Expanded(
-            child: _buildDartNumpad(theme),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModifierRow(ThemeData theme) {
-    return Row(
-      children: [
-        for (final mod in ['S', 'D', 'T'])
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _ActionButton(
-                label: mod == 'S'
-                    ? 'Single'
-                    : mod == 'D'
-                        ? 'Double'
-                        : 'Triple',
-                isActive: _selectedModifier == mod,
-                onTap: () => _onModifierSelect(mod),
-                theme: theme,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildDartNumpad(ThemeData theme) {
-    return Column(
-      children: [
-        // 4 ряда × 5 кнопок (1-20)
-        for (int row = 0; row < 4; row++)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  for (int col = 0; col < 5; col++)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: _NumpadButton(
-                          label: '${row * 5 + col + 1}',
-                          onTap: () => _onDartDigit('${row * 5 + col + 1}'),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        // Последний ряд: ↩, 25, 0, Bull, OK
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _ActionButton(
-                      label: '↩',
-                      isActive: false,
-                      onTap: _onDartClear,
-                      theme: theme,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _NumpadButton(
-                      label: '25',
-                      onTap: () => _onDartDigit('25'),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _NumpadButton(
-                      label: '0',
-                      onTap: () => _onDartDigit('0'),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _NumpadButton(
-                      label: 'Bull',
-                      onTap: () => _onDartDigit('25'),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _ActionButton(
-                      label: 'OK',
-                      isActive: true,
-                      onTap: _onSubmitDart,
-                      theme: theme,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// ===================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ВИДЖЕТЫ
-// ===================================================================
-
-/// Один бросок в режиме "Каждый бросок"
-class _DartEntry {
-  String modifier; // 'S', 'D', 'T'
-  int number; // 1-25, -1 = не введён (0 — валидное значение)
-
-  _DartEntry({this.modifier = 'S', this.number = -1});
-
-  bool get isEmpty => number == -1;
-  int get score {
-    switch (modifier) {
-      case 'D':
-        return number * 2;
-      case 'T':
-        return number * 3;
-      default:
-        return number;
-    }
-  }
-
-  String get display => isEmpty ? '___' : '$modifier$number';
-}
-
+/// Вспомогательный класс для undo
 class _UndoEntry {
   final int playerIndex;
   final int previousScore;
@@ -1360,113 +703,4 @@ class _UndoEntry {
     required this.previousDartsInLeg,
     required this.previousLastApproach,
   });
-}
-
-class _QuickSumButton extends StatelessWidget {
-  final int value;
-  final VoidCallback onTap;
-
-  const _QuickSumButton({required this.value, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 32,
-      child: Material(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(6),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(6),
-          onTap: onTap,
-          child: Center(
-            child: Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NumpadButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _NumpadButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 44,
-      child: Material(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-  final ThemeData theme;
-
-  const _ActionButton({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: Material(
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isActive
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

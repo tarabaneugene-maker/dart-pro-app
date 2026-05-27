@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
+import '../game/game_board_widget.dart';
 import '../utils/dart_utils.dart';
 
 /// Онлайн-игра 501
 ///
-/// Адаптирует игровой процесс под WebSocket.
-/// Получает события от сервера и отображает счёт.
+/// Использует общие виджеты табло и ввода из game_board_widget.dart.
+/// Состояние получает от сервера через WebSocket.
 class OnlineGamePage501 extends StatefulWidget {
   final BackendService backend;
   final RoomState roomState;
   final String playerName;
-  final String? userId; // userId текущего игрока (для надёжной идентификации)
+  final String? userId;
 
   const OnlineGamePage501({
     super.key,
@@ -30,9 +31,19 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   StreamSubscription? _subscription;
   String? _winnerMessage;
 
-  // Состояние ввода
-  int _inputScore = 0;
-  String _inputText = '';
+  // Состояние ввода (режим суммы)
+  String _inputBuffer = '';
+  bool _remainderMode = false;
+
+  // Состояние ввода (режим каждого броска)
+  final List<DartEntryDisplay> _dartEntries = [
+    const DartEntryDisplay(),
+    const DartEntryDisplay(),
+    const DartEntryDisplay(),
+  ];
+  int _currentDartIndex = 0;
+  String _selectedModifier = 'S';
+
   bool _isMyTurn = false;
   int _myIndex = 0;
 
@@ -84,11 +95,9 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
             dartsInLeg: e.dartsInLeg,
             lastApproach: e.lastApproach,
           );
-          // Обновляем счёт
           _room.scores[e.playerIndex] = e.newScore;
           _updateTurn();
-          _inputText = '';
-          _inputScore = 0;
+          _resetInput();
         });
         break;
 
@@ -106,6 +115,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
             lastApproach: [null, null],
           );
           _updateTurn();
+          _resetInput();
         });
         _showLegWonDialog(e.winnerIndex);
         break;
@@ -144,6 +154,16 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       default:
         break;
     }
+  }
+
+  void _resetInput() {
+    _inputBuffer = '';
+    _remainderMode = false;
+    for (int i = 0; i < 3; i++) {
+      _dartEntries[i] = const DartEntryDisplay();
+    }
+    _currentDartIndex = 0;
+    _selectedModifier = 'S';
   }
 
   void _showSnackBar(String message) {
@@ -188,7 +208,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pop(); // Выход в меню
+              Navigator.of(context).pop();
             },
             child: const Text('Выйти'),
           ),
@@ -197,185 +217,312 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     );
   }
 
-  void _submitThrow() {
-    if (!_isMyTurn || _inputScore <= 0) return;
-    if (!isValidThreeDartScore(_inputScore)) {
-      _showSnackBar('Невозможная сумма (${_inputScore}) для трёх дротиков');
-      return;
-    }
-    widget.backend.sendThrow(_inputScore);
+  // ===================================================================
+  // ВВОД (режим суммы)
+  // ===================================================================
+
+  void _onSumDigit(String digit) {
     setState(() {
-      _inputText = '';
-      _inputScore = 0;
+      if (_inputBuffer.length < 3) {
+        _inputBuffer += digit;
+      }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('501 — ${_room.code}'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Строка статуса
-          Container(
-            padding: const EdgeInsets.all(8),
-            color: Colors.teal.withValues(alpha: 0.1),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Text('501 | DO'),
-                Text('${_room.legsWon[0]} - ${_room.legsWon[1]}'),
-                if (_winnerMessage != null)
-                  Text(_winnerMessage!,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-
-          // Карточки игроков
-          Expanded(
-            child: Row(
-              children: [
-                _playerCard(0),
-                const VerticalDivider(width: 1),
-                _playerCard(1),
-              ],
-            ),
-          ),
-
-          // Блок ввода (только если мой ход)
-          if (_isMyTurn && _room.status == 'playing')
-            _buildInputPanel()
-          else if (_room.status == 'playing')
-            Container(
-              padding: const EdgeInsets.all(24),
-              color: Colors.grey.withValues(alpha: 0.1),
-              child: const Center(
-                child: Text('Ход соперника...',
-                    style: TextStyle(fontSize: 18)),
-              ),
-            ),
-        ],
-      ),
-    );
+  void _onSumClear() {
+    setState(() {
+      if (_inputBuffer.isNotEmpty) {
+        _inputBuffer = _inputBuffer.substring(0, _inputBuffer.length - 1);
+      }
+    });
   }
 
-  Widget _playerCard(int index) {
-    final isActive = _room.currentPlayerIndex == index;
-    final player = _room.players[index];
-    final score = _room.scores[index];
-    final legs = _room.legsWon[index];
-    final last = _room.lastApproach[index];
+  void _onToggleRemainder() {
+    setState(() {
+      _remainderMode = !_remainderMode;
+    });
+  }
 
-    return Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isActive ? Colors.teal.withValues(alpha: 0.05) : null,
-          border: isActive
-              ? Border.all(color: Colors.teal, width: 2)
-              : null,
-        ),
+  void _onQuickSum(int value) {
+    _submitThrow(value);
+  }
+
+  void _onSubmitSum() {
+    if (_inputBuffer.isEmpty) return;
+    final value = int.tryParse(_inputBuffer);
+    if (value == null) return;
+
+    if (_remainderMode) {
+      final myScore = _room.scores[_myIndex];
+      final computed = myScore - value;
+      if (computed > 0) {
+        _submitThrow(computed);
+      }
+    } else {
+      _submitThrow(value);
+    }
+    setState(() {
+      _inputBuffer = '';
+      _remainderMode = false;
+    });
+  }
+
+  // ===================================================================
+  // ВВОД (режим каждого броска)
+  // ===================================================================
+
+  void _onDartDigit(String digit) {
+    final number = int.tryParse(digit);
+    if (number == null || number < 0 || number > 25) return;
+    if (_currentDartIndex >= 3) return;
+
+    final modifier =
+        (number == 25 && _selectedModifier == 'T') ? 'S' : _selectedModifier;
+
+    setState(() {
+      _dartEntries[_currentDartIndex] = DartEntryDisplay(
+        modifier: modifier,
+        number: number,
+      );
+      if (_currentDartIndex < 2) {
+        _currentDartIndex++;
+        _selectedModifier = 'S';
+      }
+    });
+  }
+
+  void _onDartClear() {
+    setState(() {
+      if (_currentDartIndex > 0 || !_dartEntries[_currentDartIndex].isEmpty) {
+        if (!_dartEntries[_currentDartIndex].isEmpty) {
+          _dartEntries[_currentDartIndex] = const DartEntryDisplay();
+        } else if (_currentDartIndex > 0) {
+          _currentDartIndex--;
+          _dartEntries[_currentDartIndex] = const DartEntryDisplay();
+        }
+        _selectedModifier = 'S';
+      }
+    });
+  }
+
+  void _onModifierSelect(String mod) {
+    setState(() {
+      _selectedModifier = mod;
+    });
+  }
+
+  void _onSubmitDart() {
+    if (_dartEntries.every((e) => e.isEmpty)) return;
+
+    final total = _dartEntries.fold<int>(0, (sum, e) => sum + e.score);
+    _submitThrow(total);
+
+    setState(() {
+      for (int i = 0; i < 3; i++) {
+        _dartEntries[i] = const DartEntryDisplay();
+      }
+      _currentDartIndex = 0;
+      _selectedModifier = 'S';
+    });
+  }
+
+  // ===================================================================
+  // ОТПРАВКА ХОДА
+  // ===================================================================
+
+  void _submitThrow(int score) {
+    if (!_isMyTurn || score <= 0) return;
+    if (!isValidThreeDartScore(score)) {
+      _showSnackBar('Невозможная сумма ($score) для трёх дротиков');
+      return;
+    }
+    widget.backend.sendThrow(score);
+    setState(() {
+      _inputBuffer = '';
+      _remainderMode = false;
+    });
+  }
+
+  // ===================================================================
+  // BUILD
+  // ===================================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
+    if (isLandscape) {
+      return _buildLandscapeLayout(theme);
+    }
+    return _buildPortraitLayout(theme);
+  }
+
+  Widget _buildPortraitLayout(ThemeData theme) {
+    return Scaffold(
+      body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              player.name,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              ),
+            _buildStatusBar(theme),
+            // Табло
+            Expanded(
+              flex: 4,
+              child: GameScoreBoard(state: _buildBoardState()),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '$score',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: isActive ? Colors.teal : null,
-              ),
+            // Нижняя часть: ввод или "Ход соперника"
+            Expanded(
+              flex: 6,
+              child: _buildBottomPanel(theme),
             ),
-            const SizedBox(height: 4),
-            Text('Леги: $legs'),
-            if (last != null) Text('← $last'),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInputPanel() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        border: const Border(top: BorderSide(color: Colors.teal, width: 2)),
+  Widget _buildLandscapeLayout(ThemeData theme) {
+    return Scaffold(
+      body: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Column(
+                children: [
+                  _buildStatusBar(theme),
+                  Expanded(child: GameScoreBoard(state: _buildBoardState())),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 6,
+              child: _buildBottomPanel(theme),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Отображение ввода
-          Text(
-            _inputText.isEmpty ? 'Введите сумму' : _inputText,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
+    );
+  }
 
-          // Numpad
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              for (int i = 1; i <= 9; i++)
-                _numButton('$i', () => _addDigit(i)),
-              _numButton('⌫', () => _removeDigit()),
-              _numButton('0', () => _addDigit(0)),
-              _numButton('OK', _submitThrow,
-                  color: Colors.teal, textColor: Colors.white),
-            ],
+  GameBoardState _buildBoardState() {
+    return GameBoardState(
+      players: _room.players.asMap().entries.map((entry) {
+        final i = entry.key;
+        final p = entry.value;
+        return PlayerBoardInfo(
+          name: p.name,
+          score: _room.scores[i],
+          legsWon: _room.legsWon[i],
+          average: _room.dartsInLeg[i] > 0
+              ? (_room.scores[i] / _room.dartsInLeg[i]) * 3
+              : null,
+          lastApproach: _room.lastApproach[i],
+          isActive: _room.currentPlayerIndex == i,
+        );
+      }).toList(),
+      currentPlayerIndex: _room.currentPlayerIndex,
+      gameType: '501',
+      isDoubleOut: true,
+    );
+  }
+
+  Widget _buildStatusBar(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Выйти из игры',
           ),
+          const SizedBox(width: 4),
+          Text(
+            '501 | ${_room.code}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '${_room.legsWon[0]} - ${_room.legsWon[1]}',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (_winnerMessage != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              _winnerMessage!,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _numButton(String label, VoidCallback onPressed,
-      {Color? color, Color? textColor}) {
-    return SizedBox(
-      width: 60,
-      height: 48,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: textColor,
+  Widget _buildBottomPanel(ThemeData theme) {
+    if (_room.status == 'finished') {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            _winnerMessage ?? 'Игра завершена',
+            style: const TextStyle(fontSize: 18),
+          ),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 16)),
-      ),
+      );
+    }
+
+    if (!_isMyTurn) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        color: Colors.grey.withValues(alpha: 0.1),
+        child: const Center(
+          child: Text(
+            'Ход соперника...',
+            style: TextStyle(fontSize: 18),
+          ),
+        ),
+      );
+    }
+
+    // Мой ход — показываем панель ввода
+    // Определяем режим ввода: для онлайн используем сумму подхода (упрощённо)
+    return Column(
+      children: [
+        // Строка бросков / быстрые суммы
+        GameDartStatusBar(
+          dartEntries: _dartEntries,
+          currentDartIndex: _currentDartIndex,
+          isSumMode: true,
+          onQuickSum: _onQuickSum,
+        ),
+        // Панель ввода
+        Expanded(
+          child: GameDartInputPanel(
+            isSumMode: true,
+            inputBuffer: _inputBuffer,
+            remainderMode: _remainderMode,
+            dartEntries: _dartEntries,
+            currentDartIndex: _currentDartIndex,
+            selectedModifier: _selectedModifier,
+            onDigit: _onSumDigit,
+            onClear: _onSumClear,
+            onSubmit: _onSubmitSum,
+            onToggleRemainder: _onToggleRemainder,
+            onModifierSelect: _onModifierSelect,
+          ),
+        ),
+      ],
     );
-  }
-
-  void _addDigit(int digit) {
-    setState(() {
-      if (_inputText.length < 3) {
-        _inputText += '$digit';
-        _inputScore = int.tryParse(_inputText) ?? 0;
-      }
-    });
-  }
-
-  void _removeDigit() {
-    setState(() {
-      if (_inputText.isNotEmpty) {
-        _inputText = _inputText.substring(0, _inputText.length - 1);
-        _inputScore = int.tryParse(_inputText) ?? 0;
-      }
-    });
   }
 }
