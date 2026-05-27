@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/dart_utils.dart';
 
 // ===================================================================
 // DATA CLASSES — единое представление состояния игры для виджетов
@@ -138,12 +137,16 @@ class GameScoreBoard extends StatelessWidget {
   }
 
   Widget _buildPlayerColumn(ThemeData theme, PlayerBoardInfo player) {
-    return Padding(
+    return Container(
+      // Изменение 2: фон колонки активного игрока подсвечен
+      color: player.isActive
+          ? theme.colorScheme.surfaceContainerHighest
+          : null,
       padding: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Имя + счётчик легов/сетов
+          // Имя + счётчик легов/сетов (всегда видны)
           GestureDetector(
             onTap: () {
               // TODO: тоггл average
@@ -160,11 +163,10 @@ class GameScoreBoard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (player.setsWon > 0)
-                  _buildBadge(theme, '${player.setsWon}с', theme.colorScheme.tertiaryContainer),
+                // Изменение 3: S/L всегда видны
+                _buildBadge(theme, '${player.setsWon}S', theme.colorScheme.tertiaryContainer),
                 const SizedBox(width: 4),
-                if (player.legsWon > 0)
-                  _buildBadge(theme, '${player.legsWon}л', theme.colorScheme.secondaryContainer),
+                _buildBadge(theme, '${player.legsWon}L', theme.colorScheme.secondaryContainer),
               ],
             ),
           ),
@@ -178,7 +180,7 @@ class GameScoreBoard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          // Счёт (крупно)
+          // Счёт (крупно) — обычный цвет, без подсветки
           Expanded(
             child: Center(
               child: Text(
@@ -186,9 +188,7 @@ class GameScoreBoard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  color: player.isActive
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ),
@@ -404,9 +404,11 @@ class DartEntryDisplay {
   const DartEntryDisplay({this.modifier = 'S', this.number = 0});
 
   String get display {
-    if (isEmpty) return '__';
+    if (isEmpty) return '';
     if (number == 25 && modifier == 'S') return 'Bull';
     if (number == 25 && modifier == 'D') return 'DBull';
+    // Изменение 6: убираем S-префикс, показываем только число
+    if (modifier == 'S') return '$number';
     return '$modifier$number';
   }
 
@@ -436,59 +438,109 @@ class GameDartStatusBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (isSumMode) {
-      const sums = [45, 60, 81, 85, 100, 140];
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          border: Border(
-            top: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: Row(
-          children: sums
-              .map((v) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _QuickSumButton(
-                        value: v,
-                        onTap: () => onQuickSum?.call(v),
-                      ),
-                    ),
-                  ))
-              .toList(),
-        ),
-      );
+      return _buildSumMode(theme);
     }
 
+    return _buildDartMode(theme);
+  }
+
+  // Изменение 4: две строки быстрых сумм
+  Widget _buildSumMode(ThemeData theme) {
+    const row1 = [45, 60, 81, 85, 100, 140];
+    const row2 = [41, 57, 79, 83, 95, 133];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         border: Border(
           top: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (int i = 0; i < 3; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            Text(
-              '${i + 1}:${dartEntries.length > i ? dartEntries[i].display : '__'}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: i == currentDartIndex
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                color: i == currentDartIndex
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ],
-          const Spacer(),
+          Row(
+            children: row1
+                .map((v) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _QuickSumButton(
+                          value: v,
+                          onTap: () => onQuickSum?.call(v),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: row2
+                .map((v) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _QuickSumButton(
+                          value: v,
+                          onTap: () => onQuickSum?.call(v),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Изменение 6: 3 равных блока без нумерации + строка суммы
+  Widget _buildDartMode(ThemeData theme) {
+    final total = dartEntries.fold<int>(0, (sum, e) => sum + e.score);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 3 равных блока
+          Row(
+            children: List.generate(3, (i) {
+              final entry = dartEntries.length > i ? dartEntries[i] : const DartEntryDisplay();
+              final isCurrent = i == currentDartIndex;
+              return Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      right: i < 2
+                          ? BorderSide(color: theme.colorScheme.outlineVariant)
+                          : BorderSide.none,
+                    ),
+                  ),
+                  child: Text(
+                    entry.isEmpty ? '' : entry.display,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 2),
+          // Строка суммы по центру
           Text(
-            '= ${dartEntries.fold<int>(0, (sum, e) => sum + e.score)}',
+            '= $total',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -513,6 +565,9 @@ class _QuickSumButton extends StatelessWidget {
         onPressed: onTap,
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
         child: Text('$value', style: const TextStyle(fontSize: 13)),
       ),
@@ -531,9 +586,6 @@ class GameDartInputPanel extends StatefulWidget {
   /// Текущий буфер ввода (для режима суммы)
   final String inputBuffer;
 
-  /// Режим остатка (для режима суммы)
-  final bool remainderMode;
-
   /// Текущие броски (для per-dart режима)
   final List<DartEntryDisplay> dartEntries;
 
@@ -543,25 +595,30 @@ class GameDartInputPanel extends StatefulWidget {
   /// Выбранный модификатор (для per-dart режима)
   final String selectedModifier;
 
+  /// Текущий счёт игрока (для режима остатка)
+  final int currentScore;
+
   // Callbacks
   final void Function(String digit)? onDigit;
   final void Function()? onClear;
   final void Function()? onSubmit;
-  final void Function()? onToggleRemainder;
+  final void Function()? onRemainder;
+  final void Function()? onUndo;
   final void Function(String modifier)? onModifierSelect;
 
   const GameDartInputPanel({
     super.key,
     this.isSumMode = true,
     this.inputBuffer = '',
-    this.remainderMode = false,
     this.dartEntries = const [],
     this.currentDartIndex = 0,
     this.selectedModifier = 'S',
+    this.currentScore = 501,
     this.onDigit,
     this.onClear,
     this.onSubmit,
-    this.onToggleRemainder,
+    this.onRemainder,
+    this.onUndo,
     this.onModifierSelect,
   });
 
@@ -588,6 +645,7 @@ class _GameDartInputPanelState extends State<GameDartInputPanel> {
     );
   }
 
+  // Изменение 5: новая раскладка "Сумма подхода"
   Widget _buildSumInput(ThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -598,134 +656,215 @@ class _GameDartInputPanelState extends State<GameDartInputPanel> {
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(4),
             border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.remainderMode)
-                Text(
-                  'Остаток: ',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              Text(
-                widget.inputBuffer.isEmpty ? '0' : widget.inputBuffer,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+          child: Center(
+            child: Text(
+              widget.inputBuffer.isEmpty ? '0' : widget.inputBuffer,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
               ),
-            ],
+            ),
           ),
         ),
-        // Numpad
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
+        // Ряд 1: [Остаток] [OK]
+        Row(
           children: [
-            for (int i = 1; i <= 9; i++)
-              _numButton('$i', () => widget.onDigit?.call('$i')),
-            _numButton('⌫', () => widget.onClear?.call()),
-            _numButton('0', () => widget.onDigit?.call('0')),
-            _numButton('OK', () => widget.onSubmit?.call(),
-                color: Colors.teal, textColor: Colors.white),
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: widget.onRemainder,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  child: const Text('Остаток', style: TextStyle(fontSize: 14)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: FilledButton(
+                  onPressed: widget.onSubmit,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  child: const Text('OK', style: TextStyle(fontSize: 14)),
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
-        // Кнопка режима остатка
-        TextButton.icon(
-          onPressed: () => widget.onToggleRemainder?.call(),
-          icon: Icon(
-            widget.remainderMode ? Icons.toggle_on : Icons.toggle_off_outlined,
-            size: 20,
-          ),
-          label: Text(
-            widget.remainderMode ? 'Режим остатка: ВКЛ' : 'Режим остатка',
-            style: theme.textTheme.bodySmall,
-          ),
+        // Ряд 2: [1] [2] [3]
+        Row(
+          children: [
+            _numButton('1', () => widget.onDigit?.call('1')),
+            const SizedBox(width: 8),
+            _numButton('2', () => widget.onDigit?.call('2')),
+            const SizedBox(width: 8),
+            _numButton('3', () => widget.onDigit?.call('3')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Ряд 3: [4] [5] [6]
+        Row(
+          children: [
+            _numButton('4', () => widget.onDigit?.call('4')),
+            const SizedBox(width: 8),
+            _numButton('5', () => widget.onDigit?.call('5')),
+            const SizedBox(width: 8),
+            _numButton('6', () => widget.onDigit?.call('6')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Ряд 4: [7] [8] [9]
+        Row(
+          children: [
+            _numButton('7', () => widget.onDigit?.call('7')),
+            const SizedBox(width: 8),
+            _numButton('8', () => widget.onDigit?.call('8')),
+            const SizedBox(width: 8),
+            _numButton('9', () => widget.onDigit?.call('9')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Ряд 5: [⌫] [0] [↩]
+        Row(
+          children: [
+            _numButton('⌫', () => widget.onClear?.call()),
+            const SizedBox(width: 8),
+            _numButton('0', () => widget.onDigit?.call('0')),
+            const SizedBox(width: 8),
+            _numButton('↩', () => widget.onUndo?.call()),
+          ],
         ),
       ],
     );
   }
 
+  // Изменение 6: новая раскладка "Каждый бросок"
   Widget _buildDartInput(ThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Модификаторы S/D/T
+        // Ряд 1: [1] [2] [3] [4] [5] [6] [7]
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _modifierButton('S', 'Single'),
-            const SizedBox(width: 8),
-            _modifierButton('D', 'Double'),
-            const SizedBox(width: 8),
-            _modifierButton('T', 'Triple'),
+            for (int i = 1; i <= 7; i++) ...[
+              if (i > 1) const SizedBox(width: 4),
+              Expanded(
+                child: _numButton('$i', () => widget.onDigit?.call('$i')),
+              ),
+            ],
           ],
         ),
-        const SizedBox(height: 8),
-        // Numpad 1-20 + Bull
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          alignment: WrapAlignment.center,
+        const SizedBox(height: 6),
+        // Ряд 2: [8] [9] [10] [11] [12] [13] [14]
+        Row(
           children: [
-            for (int i = 1; i <= 20; i++)
-              _numButton('$i', () => widget.onDigit?.call('$i'),
-                  width: 48, height: 40),
-            _numButton('Bull', () => widget.onDigit?.call('25'),
-                width: 60, height: 40, color: Colors.amber.shade700),
+            for (int i = 8; i <= 14; i++) ...[
+              if (i > 8) const SizedBox(width: 4),
+              Expanded(
+                child: _numButton('$i', () => widget.onDigit?.call('$i')),
+              ),
+            ],
           ],
         ),
-        const SizedBox(height: 8),
-        // Управление
+        const SizedBox(height: 6),
+        // Ряд 3: [15] [16] [17] [18] [19] [20] [Bull]
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _numButton('⌫', () => widget.onClear?.call()),
-            const SizedBox(width: 8),
-            _numButton('OK', () => widget.onSubmit?.call(),
-                color: Colors.teal, textColor: Colors.white),
+            for (int i = 15; i <= 20; i++) ...[
+              if (i > 15) const SizedBox(width: 4),
+              Expanded(
+                child: _numButton('$i', () => widget.onDigit?.call('$i')),
+              ),
+            ],
+            const SizedBox(width: 4),
+            Expanded(
+              child: _numButton('Bull', () => widget.onDigit?.call('25'),
+                  color: Colors.amber.shade700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // Ряд 4: [0] [DOUBLE] [TRIPLE] [НАЗАД]
+        Row(
+          children: [
+            Expanded(
+              child: _numButton('0', () => widget.onDigit?.call('0')),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              flex: 2,
+              child: _modifierButton('D', 'DOUBLE'),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              flex: 2,
+              child: _modifierButton('T', 'TRIPLE'),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _numButton('↩', () => widget.onUndo?.call()),
+            ),
           ],
         ),
       ],
     );
   }
 
+  // Изменение 1: кнопки прямоугольные
   Widget _numButton(String label, VoidCallback onPressed,
-      {double width = 56, double height = 44, Color? color, Color? textColor}) {
+      {Color? color, Color? textColor}) {
     return SizedBox(
-      width: width,
-      height: height,
+      height: 44,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: textColor,
           padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
         child: Text(label, style: const TextStyle(fontSize: 14)),
       ),
     );
   }
 
-  Widget _modifierButton(String mod, String tooltip) {
+  Widget _modifierButton(String mod, String label) {
     final isSelected = widget.selectedModifier == mod;
     return SizedBox(
-      width: 80,
-      height: 36,
+      height: 44,
       child: isSelected
           ? FilledButton(
               onPressed: () => widget.onModifierSelect?.call(mod),
-              child: Text(mod),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: Text(label, style: const TextStyle(fontSize: 13)),
             )
           : OutlinedButton(
               onPressed: () => widget.onModifierSelect?.call(mod),
-              child: Text(mod),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: Text(label, style: const TextStyle(fontSize: 13)),
             ),
     );
   }

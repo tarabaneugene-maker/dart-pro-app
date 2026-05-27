@@ -33,7 +33,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
   // Состояние ввода (режим суммы)
   String _inputBuffer = '';
-  bool _remainderMode = false;
 
   // Состояние ввода (режим каждого броска)
   final List<DartEntryDisplay> _dartEntries = [
@@ -158,7 +157,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
   void _resetInput() {
     _inputBuffer = '';
-    _remainderMode = false;
     for (int i = 0; i < 3; i++) {
       _dartEntries[i] = const DartEntryDisplay();
     }
@@ -237,12 +235,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     });
   }
 
-  void _onToggleRemainder() {
-    setState(() {
-      _remainderMode = !_remainderMode;
-    });
-  }
-
   void _onQuickSum(int value) {
     _submitThrow(value);
   }
@@ -251,19 +243,23 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     if (_inputBuffer.isEmpty) return;
     final value = int.tryParse(_inputBuffer);
     if (value == null) return;
+    _submitThrow(value);
+    setState(() {
+      _inputBuffer = '';
+    });
+  }
 
-    if (_remainderMode) {
-      final myScore = _room.scores[_myIndex];
-      final computed = myScore - value;
-      if (computed > 0) {
-        _submitThrow(computed);
-      }
-    } else {
-      _submitThrow(value);
+  void _onRemainder() {
+    if (_inputBuffer.isEmpty) return;
+    final value = int.tryParse(_inputBuffer);
+    if (value == null) return;
+    final myScore = _room.scores[_myIndex];
+    final computed = myScore - value;
+    if (computed > 0) {
+      _submitThrow(computed);
     }
     setState(() {
       _inputBuffer = '';
-      _remainderMode = false;
     });
   }
 
@@ -339,7 +335,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     widget.backend.sendThrow(score);
     setState(() {
       _inputBuffer = '';
-      _remainderMode = false;
     });
   }
 
@@ -511,14 +506,15 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           child: GameDartInputPanel(
             isSumMode: true,
             inputBuffer: _inputBuffer,
-            remainderMode: _remainderMode,
             dartEntries: _dartEntries,
             currentDartIndex: _currentDartIndex,
             selectedModifier: _selectedModifier,
+            currentScore: _room.scores[_myIndex],
             onDigit: _onSumDigit,
             onClear: _onSumClear,
             onSubmit: _onSubmitSum,
-            onToggleRemainder: _onToggleRemainder,
+            onRemainder: _onRemainder,
+            onUndo: null,
             onModifierSelect: _onModifierSelect,
           ),
         ),

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/game_settings.dart';
 import '../models/game_enums.dart';
-import '../models/player_config.dart';
 import '../bots/dart_bot_501.dart';
 import '../utils/dart_utils.dart';
 import 'game_board_widget.dart';
@@ -45,7 +44,6 @@ class _GamePage501State extends State<GamePage501> {
 
   // --- Состояние ввода (Режим А: Сумма подхода) ---
   String _inputBuffer = '';
-  bool _remainderMode = false;
 
   // --- Состояние ввода (Режим Б: Каждый бросок) ---
   final List<DartEntryDisplay> _dartEntries = [
@@ -267,11 +265,9 @@ class _GamePage501State extends State<GamePage501> {
         .values
         .join('-');
 
-    bool setWon = false;
     if (state.legsWon >= widget.settings.legs) {
       state.setsWon++;
       state.legsWon = 0;
-      setWon = true;
     }
 
     if (state.setsWon >= widget.settings.sets) {
@@ -345,7 +341,6 @@ class _GamePage501State extends State<GamePage501> {
 
   void _resetInput() {
     _inputBuffer = '';
-    _remainderMode = false;
     for (int i = 0; i < 3; i++) {
       _dartEntries[i] = const DartEntryDisplay();
     }
@@ -396,12 +391,6 @@ class _GamePage501State extends State<GamePage501> {
     });
   }
 
-  void _onRemainderMode() {
-    setState(() {
-      _remainderMode = !_remainderMode;
-    });
-  }
-
   void _onQuickSum(int value) {
     _submitScore(value, isBot: false);
   }
@@ -410,19 +399,23 @@ class _GamePage501State extends State<GamePage501> {
     if (_inputBuffer.isEmpty) return;
     final value = int.tryParse(_inputBuffer);
     if (value == null) return;
+    _submitScore(value, isBot: false);
+    setState(() {
+      _inputBuffer = '';
+    });
+  }
 
-    if (_remainderMode) {
-      final state = _players[_currentPlayerIndex];
-      final computed = state.score - value;
-      if (computed > 0) {
-        _submitScore(computed, isBot: false);
-      }
-    } else {
-      _submitScore(value, isBot: false);
+  void _onRemainder() {
+    if (_inputBuffer.isEmpty) return;
+    final value = int.tryParse(_inputBuffer);
+    if (value == null) return;
+    final state = _players[_currentPlayerIndex];
+    final computed = state.score - value;
+    if (computed > 0) {
+      _submitScore(computed, isBot: false);
     }
     setState(() {
       _inputBuffer = '';
-      _remainderMode = false;
     });
   }
 
@@ -528,27 +521,29 @@ class _GamePage501State extends State<GamePage501> {
                   ? GameDartInputPanel(
                       isSumMode: true,
                       inputBuffer: _inputBuffer,
-                      remainderMode: _remainderMode,
                       dartEntries: _dartEntries,
                       currentDartIndex: _currentDartIndex,
                       selectedModifier: _selectedModifier,
+                      currentScore: _players[_currentPlayerIndex].score,
                       onDigit: _onNumpadDigit,
                       onClear: _onNumpadClear,
                       onSubmit: _onSubmitSum,
-                      onToggleRemainder: _onRemainderMode,
+                      onRemainder: _onRemainder,
+                      onUndo: _undo,
                       onModifierSelect: _onModifierSelect,
                     )
                   : GameDartInputPanel(
                       isSumMode: false,
                       inputBuffer: _inputBuffer,
-                      remainderMode: _remainderMode,
                       dartEntries: _dartEntries,
                       currentDartIndex: _currentDartIndex,
                       selectedModifier: _selectedModifier,
+                      currentScore: _players[_currentPlayerIndex].score,
                       onDigit: _onDartDigit,
                       onClear: _onDartClear,
                       onSubmit: _onSubmitDart,
-                      onToggleRemainder: _onRemainderMode,
+                      onRemainder: _onRemainder,
+                      onUndo: _onDartClear,
                       onModifierSelect: _onModifierSelect,
                     ),
             ),
@@ -586,27 +581,29 @@ class _GamePage501State extends State<GamePage501> {
                   ? GameDartInputPanel(
                       isSumMode: true,
                       inputBuffer: _inputBuffer,
-                      remainderMode: _remainderMode,
                       dartEntries: _dartEntries,
                       currentDartIndex: _currentDartIndex,
                       selectedModifier: _selectedModifier,
+                      currentScore: _players[_currentPlayerIndex].score,
                       onDigit: _onNumpadDigit,
                       onClear: _onNumpadClear,
                       onSubmit: _onSubmitSum,
-                      onToggleRemainder: _onRemainderMode,
+                      onRemainder: _onRemainder,
+                      onUndo: _undo,
                       onModifierSelect: _onModifierSelect,
                     )
                   : GameDartInputPanel(
                       isSumMode: false,
                       inputBuffer: _inputBuffer,
-                      remainderMode: _remainderMode,
                       dartEntries: _dartEntries,
                       currentDartIndex: _currentDartIndex,
                       selectedModifier: _selectedModifier,
+                      currentScore: _players[_currentPlayerIndex].score,
                       onDigit: _onDartDigit,
                       onClear: _onDartClear,
                       onSubmit: _onSubmitDart,
-                      onToggleRemainder: _onRemainderMode,
+                      onRemainder: _onRemainder,
+                      onUndo: _onDartClear,
                       onModifierSelect: _onModifierSelect,
                     ),
             ),
