@@ -45,33 +45,93 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
       case JoinRequestedEvent _:
         setState(() {
           _requested = true;
-          _statusMessage = 'Запрос отправлен, ожидайте...';
+          _statusMessage = null;
         });
         break;
-      case GameStartedEvent event:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => OnlineGamePage501(
-              backend: widget.backend,
-              roomState: event.room,
-              playerName: widget.playerName,
-              userId: widget.backend.currentUserId,
-            ),
-          ),
+
+      case GameStartedEvent e:
+        // Игра началась — проверяем, участвуем ли мы
+        final isMyGame = e.room.players.any(
+          (p) => p.name == widget.playerName,
         );
+        if (isMyGame) {
+          // Мы в игре — переходим
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineGamePage501(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.playerName,
+                userId: widget.backend.currentUserId,
+              ),
+            ),
+          );
+        } else {
+          // Игра началась без нас — показываем диалог и возвращаемся в лобби
+          _showGameStartedWithoutUs();
+        }
         break;
-      case JoinRejectedEvent _:
+
+      case JoinRejectedEvent e:
         setState(() {
           _requested = false;
-          _statusMessage = 'Создатель отклонил ваш запрос';
+          _statusMessage = null;
         });
+        final creatorName = e.creatorName ?? 'Создатель';
+        _showRejectedDialog(creatorName);
         break;
+
       case ErrorEvent e:
-        setState(() => _statusMessage = e.message);
+        // Если игра уже началась — диалог с возвратом в лобби
+        if (e.message.contains('игра уже началась') ||
+            e.message.contains('Комната заполнена') ||
+            e.message.contains('уже есть запрос')) {
+          _showGameStartedWithoutUs();
+        } else {
+          setState(() => _statusMessage = e.message);
+        }
         break;
+
       default:
         break;
     }
+  }
+
+  void _showRejectedDialog(String creatorName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Запрос отклонён'),
+        content: Text('Игрок $creatorName отклонил ваш запрос'),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGameStartedWithoutUs() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Игра уже началась'),
+        content: const Text(
+          'Игра уже началась. Попробуйте поискать другую в лобби или создать свою.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop(); // Возврат в лобби
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _requestJoin() {
@@ -132,21 +192,12 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
             // Статус
             if (_statusMessage != null)
               Card(
-                color: _statusMessage!.contains('отклонил')
-                    ? Colors.red.shade50
-                    : Colors.teal.shade50,
+                color: Colors.red.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(
-                        _statusMessage!.contains('отклонил')
-                            ? Icons.cancel_outlined
-                            : Icons.info_outline,
-                        color: _statusMessage!.contains('отклонил')
-                            ? Colors.red
-                            : Colors.teal,
-                      ),
+                      const Icon(Icons.error_outline, color: Colors.red),
                       const SizedBox(width: 8),
                       Expanded(child: Text(_statusMessage!)),
                     ],
@@ -156,16 +207,26 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
             if (_statusMessage != null) const SizedBox(height: 24),
 
             // Кнопки
-            if (!_requested)
-              SizedBox(
-                height: 48,
-                child: FilledButton.icon(
-                  onPressed: _requestJoin,
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Присоединиться',
-                      style: TextStyle(fontSize: 16)),
-                ),
-              ),
+            SizedBox(
+              height: 48,
+              child: _requested
+                  ? OutlinedButton.icon(
+                      onPressed: null, // disabled
+                      icon: const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      label: const Text('Ожидание игры...',
+                          style: TextStyle(fontSize: 16)),
+                    )
+                  : FilledButton.icon(
+                      onPressed: _requestJoin,
+                      icon: const Icon(Icons.person_add),
+                      label: const Text('Присоединиться',
+                          style: TextStyle(fontSize: 16)),
+                    ),
+            ),
             const SizedBox(height: 12),
             SizedBox(
               height: 48,

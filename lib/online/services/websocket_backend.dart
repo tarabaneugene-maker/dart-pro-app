@@ -514,6 +514,7 @@ class WebSocketBackend implements BackendService {
         _eventController.add(JoinRejectedEvent(
           roomId: message['roomId'] as String,
           message: message['message'] as String? ?? '',
+          creatorName: message['creatorName'] as String?,
         ));
         break;
 

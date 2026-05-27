@@ -12,6 +12,7 @@ import 'training/training_page.dart';
 import 'online/services/backend_service.dart';
 import 'online/services/websocket_backend.dart';
 import 'online/auth/login_page.dart';
+import 'online/lobby_page.dart';
 import 'online/server_url.dart';
 
 void main() {
@@ -57,6 +58,10 @@ class _HomePageState extends State<HomePage> {
   bool _backendConnected = false;
   StreamSubscription? _backendSub;
 
+  // Для авто-входа: кэшируем страницу онлайн, чтобы не пересоздавать
+  Widget? _onlinePage;
+  bool _onlinePageBuilt = false;
+
   static const List<String> _titles = <String>['Тренировка', 'Игра', 'Онлайн'];
 
   @override
@@ -95,12 +100,17 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Widget _buildOnlinePage() {
+    // LoginPage сама проверит токен и сделает авто-вход
+    return LoginPage(backend: _backend);
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
       const TrainingPage(),
       const LocalGameMenuPage(),
-      LoginPage(backend: _backend),
+      _buildOnlinePage(),
     ];
 
     return Scaffold(

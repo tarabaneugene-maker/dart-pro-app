@@ -164,7 +164,8 @@ class JoinRequestedEvent extends ServerEvent {
 class JoinRejectedEvent extends ServerEvent {
   final String roomId;
   final String message;
-  JoinRejectedEvent({required this.roomId, required this.message});
+  final String? creatorName;
+  JoinRejectedEvent({required this.roomId, required this.message, this.creatorName});
 }
 
 class GameStartedEvent extends ServerEvent {

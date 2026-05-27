@@ -6,7 +6,6 @@ import 'room_detail_page.dart';
 import 'room_creator_page.dart';
 import 'online_game_page_501.dart';
 import 'profile/profile_page.dart';
-import '../main.dart';
 
 /// Лобби — список открытых игр + кнопки создания и входа по коду
 class LobbyPage extends StatefulWidget {
@@ -199,12 +198,7 @@ class _LobbyPageState extends State<LobbyPage> {
           icon: const Icon(Icons.arrow_back),
           tooltip: 'На главную',
           onPressed: () {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) => const HomePage(),
-              ),
-              (route) => false,
-            );
+            Navigator.of(context).pop();
           },
         ),
         actions: [

@@ -468,6 +468,9 @@ class GameServer {
       'room': room.toJson(),
     });
 
+    // Обновляем лобби — комната исчезла из списка
+    _broadcastLobbyUpdate();
+
     print('🎮 Игра началась в комнате ${room.code}');
   }
 
@@ -485,6 +488,9 @@ class GameServer {
       return;
     }
 
+    // Имя создателя для уведомления
+    final creatorName = room.creator?.name ?? 'Создатель';
+
     // Уведомляем отклонённого игрока
     if (rejectedUserId != null) {
       final rejectedWs = _clients[rejectedUserId];
@@ -492,10 +498,14 @@ class GameServer {
         _send(rejectedWs, {
           'type': 'join_rejected',
           'roomId': room.id,
+          'creatorName': creatorName,
           'message': 'Создатель отклонил ваш запрос',
         });
       }
     }
+
+    // Обновляем лобби — коммента снова доступна
+    _broadcastLobbyUpdate();
   }
 
   void _handleJoinByCode(WebSocketChannel ws, Map<String, dynamic> message) {
