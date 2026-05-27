@@ -135,6 +135,11 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   }
 
   void _requestJoin() {
+    // Сразу показываем "Ожидание игры..." до ответа сервера
+    setState(() {
+      _requested = true;
+      _statusMessage = null;
+    });
     widget.backend.requestJoin(widget.roomInfo.id, widget.playerName,
         avg: widget.playerAvg);
   }

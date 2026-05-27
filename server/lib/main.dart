@@ -677,7 +677,8 @@ class GameServer {
       'rooms': rooms.map((r) => r.toLobbyJson()).toList(),
     });
 
-    for (final ws in _lobbyClients) {
+    // toList() — защита от ConcurrentModificationError при удалении битых сокетов
+    for (final ws in _lobbyClients.toList()) {
       try {
         ws.sink.add(data);
       } catch (_) {
