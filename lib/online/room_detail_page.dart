@@ -4,6 +4,9 @@ import 'services/backend_service.dart';
 import 'online_game_page_501.dart';
 
 /// Страница просмотра комнаты (для Игрока2)
+/// При нажатии на комнату в лобби — "проваливаемся" сюда.
+/// Видим подробности, кнопка "Присоединиться" отправляет запрос.
+/// После принятия создателем — попадаем в игру.
 class RoomDetailPage extends StatefulWidget {
   final BackendService backend;
   final LobbyRoomInfo roomInfo;
@@ -188,6 +191,9 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                         'Best of ${room.gameParams['legs'] ?? 5}'),
                     const SizedBox(height: 4),
                     _infoRow('Код комнаты', room.code),
+                    const SizedBox(height: 4),
+                    _infoRow('Игроков в комнате',
+                        '${room.playersCount}'),
                   ],
                 ),
               ),

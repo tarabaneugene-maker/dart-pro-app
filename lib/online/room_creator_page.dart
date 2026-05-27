@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
+import 'services/websocket_backend.dart';
 import 'online_game_page_501.dart';
 
 /// Страница создания комнаты — выбор настроек + создание на сервере
@@ -30,8 +31,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
   String _gameType = '501';
   int _sets = 1;
   int _legs = 3;
-  String _startType = 'straightIn';   // straightIn / doubleIn
-  String _finishType = 'doubleOut';   // doubleOut / straightOut
+  String _startType = 'straightIn';
+  String _finishType = 'doubleOut';
+  bool _isPrivate = false;
 
   @override
   void initState() {
@@ -59,7 +61,6 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
           _creating = false;
           _error = e.message;
         });
-        // C2: если «Не авторизован» — предложить перелогиниться
         if (e.message.contains('Не авторизован') || e.message.contains('не авторизован')) {
           _showReauthSnackBar();
         }
@@ -88,10 +89,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
     });
 
     try {
-      // createRoom() сам вызывает ensureConnected() + waitForAuth()
       await widget.backend.createRoom(
         widget.playerName,
-        isPrivate: widget.isPrivate,
+        isPrivate: _isPrivate,
         gameType: _gameType,
         gameParams: {
           'legs': _legs,
@@ -108,7 +108,6 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
       return;
     }
 
-    // Таймаут на случай если сервер не ответил
     _createTimer?.cancel();
     _createTimer = Timer(const Duration(seconds: 10), () {
       if (!mounted) return;
@@ -147,9 +146,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Тип игры
             DropdownButtonFormField<String>(
-              initialValue: _gameType,
+              value: _gameType,
+
               decoration: const InputDecoration(
                 labelText: 'Тип игры',
                 border: OutlineInputBorder(),
@@ -164,9 +163,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Сеты
             DropdownButtonFormField<int>(
-              initialValue: _sets,
+              value: _sets,
+
               decoration: const InputDecoration(
                 labelText: 'Сеты (1-6)',
                 border: OutlineInputBorder(),
@@ -180,9 +179,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Леги
             DropdownButtonFormField<int>(
-              initialValue: _legs,
+              value: _legs,
+
               decoration: const InputDecoration(
                 labelText: 'Леги (1-6)',
                 border: OutlineInputBorder(),
@@ -196,9 +195,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Начало
             DropdownButtonFormField<String>(
-              initialValue: _startType,
+              value: _startType,
+
               decoration: const InputDecoration(
                 labelText: 'Начало',
                 border: OutlineInputBorder(),
@@ -219,9 +218,9 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Финиш
             DropdownButtonFormField<String>(
-              initialValue: _finishType,
+              value: _finishType,
+
               decoration: const InputDecoration(
                 labelText: 'Финиш',
                 border: OutlineInputBorder(),
@@ -242,30 +241,25 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Тип комнаты
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(
-                      widget.isPrivate ? Icons.lock : Icons.public,
-                      color: widget.isPrivate ? Colors.orange : Colors.teal,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      widget.isPrivate
-                          ? 'Приватная комната (по коду)'
-                          : 'Публичная комната (в лобби)',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
+            // Тип комнаты — Dropdown вместо Card
+            DropdownButtonFormField<bool>(
+              value: _isPrivate,
+
+              decoration: const InputDecoration(
+                labelText: 'Тип комнаты',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock_outline),
               ),
+              items: const [
+                DropdownMenuItem(value: false, child: Text('Публичная (в лобби)')),
+                DropdownMenuItem(value: true, child: Text('Приватная (по коду)')),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _isPrivate = v);
+              },
             ),
             const SizedBox(height: 24),
 
-            // Ошибка
             if (_error != null)
               Card(
                 color: Colors.red.shade50,
@@ -282,7 +276,6 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
               ),
             if (_error != null) const SizedBox(height: 16),
 
-            // Кнопка создания
             SizedBox(
               height: 52,
               child: FilledButton.icon(
@@ -329,7 +322,7 @@ class _WaitingRoomPage extends StatefulWidget {
 
 class _WaitingRoomPageState extends State<_WaitingRoomPage> {
   StreamSubscription? _subscription;
-  RoomPlayerInfo? _pendingPlayer;
+  List<RoomPlayerInfo> _pendingPlayers = [];
   String? _error;
   bool _disconnected = false;
   Timer? _connectionCheckTimer;
@@ -338,7 +331,6 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
   void initState() {
     super.initState();
     _subscription = widget.backend.events.listen(_handleEvent);
-    // Проверка соединения каждые 5 секунд
     _connectionCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted) return;
       if (!widget.backend.isConnected && !_disconnected) {
@@ -367,7 +359,16 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
     switch (event) {
       case JoinRequestEvent e:
         if (e.roomId == widget.roomId) {
-          setState(() => _pendingPlayer = e.player);
+          setState(() {
+            if (!_pendingPlayers.any((p) => p.userId == e.player.userId)) {
+              _pendingPlayers.add(e.player);
+            }
+          });
+        }
+        break;
+      case PendingPlayersUpdateEvent e:
+        if (e.roomId == widget.roomId) {
+          setState(() => _pendingPlayers = e.players);
         }
         break;
       case GameStartedEvent e:
@@ -390,13 +391,23 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
     }
   }
 
-  void _acceptPlayer() {
-    widget.backend.acceptJoin(widget.roomId);
+  void _acceptPlayer(RoomPlayerInfo player) {
+    if (widget.backend is WebSocketBackend) {
+      (widget.backend as WebSocketBackend)
+          .acceptPlayer(widget.roomId, player.userId);
+    } else {
+      widget.backend.acceptJoin(widget.roomId);
+    }
   }
 
-  void _rejectPlayer() {
-    widget.backend.rejectJoin(widget.roomId);
-    setState(() => _pendingPlayer = null);
+  void _rejectPlayer(RoomPlayerInfo player) {
+    if (widget.backend is WebSocketBackend) {
+      (widget.backend as WebSocketBackend)
+          .rejectPlayer(widget.roomId, player.userId);
+    } else {
+      widget.backend.rejectJoin(widget.roomId);
+    }
+    setState(() => _pendingPlayers.removeWhere((p) => p.userId == player.userId));
   }
 
   void _leaveRoom() {
@@ -424,7 +435,8 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    const Icon(Icons.wifi_tethering, size: 48, color: Colors.teal),
+                    const Icon(Icons.wifi_tethering,
+                        size: 48, color: Colors.teal),
                     const SizedBox(height: 12),
                     Text(
                       'Код комнаты',
@@ -481,8 +493,8 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
               ),
             if (_error != null) const SizedBox(height: 16),
 
-            // Ожидание
-            if (_pendingPlayer == null) ...[
+            // Список ожидающих игроков
+            if (_pendingPlayers.isEmpty) ...[
               const Spacer(),
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
@@ -500,77 +512,74 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
               ),
               const Spacer(),
             ] else ...[
-              // Информация об игроке, запросившем присоединение
-              Text(
-                'Игрок хочет присоединиться',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        child: Text(
-                          _pendingPlayer!.name[0].toUpperCase(),
-                          style: const TextStyle(fontSize: 28),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _pendingPlayer!.name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.trending_up,
-                              size: 20, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Средний набор: ${_pendingPlayer!.avg.toStringAsFixed(1)}',
-                            style: Theme.of(context).textTheme.bodyLarge,
+              Expanded(
+                child: ListView(
+                  children: [
+                    Text(
+                      'Игроки хотят присоединиться',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    ..._pendingPlayers.map((player) => Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  child: Text(
+                                    player.name[0].toUpperCase(),
+                                    style: const TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        player.name,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.trending_up,
+                                              size: 16, color: Colors.grey),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Средний: ${player.avg.toStringAsFixed(1)}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close,
+                                      color: Colors.red),
+                                  tooltip: 'Отказать',
+                                  onPressed: () => _rejectPlayer(player),
+                                ),
+                                const SizedBox(width: 4),
+                                FilledButton.icon(
+                                  onPressed: () => _acceptPlayer(player),
+                                  icon: const Icon(Icons.play_arrow,
+                                      size: 18),
+                                  label: const Text('Начать'),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        )),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // Кнопки
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        onPressed: _rejectPlayer,
-                        icon: const Icon(Icons.close),
-                        label: const Text('Отказать'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: FilledButton.icon(
-                        onPressed: _acceptPlayer,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Начать игру'),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ],

@@ -61,30 +61,33 @@ class GameRoomManager {
     if (room.playerByUserId(userId) != null) {
       return (null, 'Вы уже в этой комнате');
     }
-    if (room.pendingPlayer != null) {
-      return (null, 'Уже есть запрос на присоединение');
+    // Проверяем, нет ли уже заявки от этого игрока
+    if (room.pendingPlayers.any((p) => p.userId == userId)) {
+      return (null, 'Вы уже отправили запрос');
     }
 
-    room.pendingPlayer = RoomPlayer(userId: userId, name: userName, avg: avg);
+    room.pendingPlayers.add(RoomPlayer(userId: userId, name: userName, avg: avg));
     return (room, null);
   }
 
   /// Принять запрос на присоединение (только создатель)
   /// Возвращает (Room?, errorMessage)
-  (Room?, String?) acceptJoin(String roomId, String creatorUserId) {
+  (Room?, String?) acceptJoin(String roomId, String creatorUserId, String targetUserId) {
     final room = _roomsById[roomId];
     if (room == null) return (null, 'Комната не найдена');
     if (room.creator?.userId != creatorUserId) {
       return (null, 'Только создатель может принять игрока');
     }
-    if (room.pendingPlayer == null) {
-      return (null, 'Нет запроса на присоединение');
+
+    final index = room.pendingPlayers.indexWhere((p) => p.userId == targetUserId);
+    if (index == -1) {
+      return (null, 'Запрос от этого игрока не найден');
     }
 
     // Добавляем игрока
-    room.players.add(room.pendingPlayer!);
-    _playerRoom[room.pendingPlayer!.userId] = roomId;
-    room.pendingPlayer = null;
+    final player = room.pendingPlayers.removeAt(index);
+    room.players.add(player);
+    _playerRoom[player.userId] = roomId;
 
     // Начинаем игру
     room.status = RoomStatus.playing;
@@ -95,21 +98,22 @@ class GameRoomManager {
 
   /// Отклонить запрос на присоединение (только создатель)
   /// Возвращает (Room?, errorMessage)
-  (Room?, String?) rejectJoin(String roomId, String creatorUserId) {
+  (Room?, String?) rejectJoin(String roomId, String creatorUserId, String targetUserId) {
     final room = _roomsById[roomId];
     if (room == null) return (null, 'Комната не найдена');
     if (room.creator?.userId != creatorUserId) {
       return (null, 'Только создатель может отклонить игрока');
     }
-    if (room.pendingPlayer == null) {
-      return (null, 'Нет запроса на присоединение');
+
+    final index = room.pendingPlayers.indexWhere((p) => p.userId == targetUserId);
+    if (index == -1) {
+      return (null, 'Запрос от этого игрока не найден');
     }
 
-    final rejectedUserId = room.pendingPlayer!.userId;
-    room.pendingPlayer = null;
-
-    return (room, rejectedUserId);
+    room.pendingPlayers.removeAt(index);
+    return (room, targetUserId);
   }
+
 
   /// Присоединиться к комнате по коду (приватной)
   /// Возвращает (Room?, errorMessage)

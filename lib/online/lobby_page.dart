@@ -23,6 +23,7 @@ class _LobbyPageState extends State<LobbyPage> {
   List<LobbyRoomInfo> _rooms = [];
   StreamSubscription? _subscription;
   bool _loading = true;
+  Timer? _lobbyRefreshTimer;
 
   @override
   void initState() {
@@ -30,6 +31,12 @@ class _LobbyPageState extends State<LobbyPage> {
     _subscription = widget.backend.events.listen(_handleEvent);
     // E1: ждём соединения перед входом в лобби
     _enterLobbyWhenReady();
+    // Автообновление лобби каждые 5 секунд
+    _lobbyRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (widget.backend.isConnected) {
+        widget.backend.getLobby();
+      }
+    });
   }
 
   Future<void> _enterLobbyWhenReady() async {
@@ -40,6 +47,7 @@ class _LobbyPageState extends State<LobbyPage> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _lobbyRefreshTimer?.cancel();
     _codeController.dispose();
     widget.backend.leaveLobby();
     super.dispose();
@@ -102,13 +110,12 @@ class _LobbyPageState extends State<LobbyPage> {
     );
   }
 
-  void _createRoom({bool isPrivate = false}) {
+  void _createRoom() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => RoomCreatorPage(
           backend: widget.backend,
           playerName: widget.displayName,
-          isPrivate: isPrivate,
         ),
       ),
     );
@@ -212,11 +219,6 @@ class _LobbyPageState extends State<LobbyPage> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.vpn_key),
-            tooltip: 'Вступить по коду',
-            onPressed: _showJoinDialog,
-          ),
-          IconButton(
             icon: const Icon(Icons.person),
             tooltip: 'Профиль',
             onPressed: () {
@@ -301,7 +303,7 @@ class _LobbyPageState extends State<LobbyPage> {
                     ),
             ),
           ),
-          // Нижняя панель с кнопками
+          // Нижняя панель с кнопками [Создать игру] [Войти по коду]
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -311,9 +313,9 @@ class _LobbyPageState extends State<LobbyPage> {
                     child: SizedBox(
                       height: 52,
                       child: OutlinedButton.icon(
-                        onPressed: () => _createRoom(isPrivate: true),
-                        icon: const Icon(Icons.lock_outline),
-                        label: const Text('Приватная'),
+                        onPressed: _showJoinDialog,
+                        icon: const Icon(Icons.vpn_key),
+                        label: const Text('Войти по коду'),
                       ),
                     ),
                   ),
@@ -323,7 +325,7 @@ class _LobbyPageState extends State<LobbyPage> {
                     child: SizedBox(
                       height: 52,
                       child: FilledButton.icon(
-                        onPressed: () => _createRoom(),
+                        onPressed: _createRoom,
                         icon: const Icon(Icons.add_circle_outline),
                         label: const Text('Создать игру'),
                       ),

@@ -168,6 +168,13 @@ class JoinRejectedEvent extends ServerEvent {
   JoinRejectedEvent({required this.roomId, required this.message, this.creatorName});
 }
 
+class PendingPlayersUpdateEvent extends ServerEvent {
+  final String roomId;
+  final List<RoomPlayerInfo> players;
+  PendingPlayersUpdateEvent({required this.roomId, required this.players});
+}
+
+
 class GameStartedEvent extends ServerEvent {
   final RoomState room;
   GameStartedEvent(this.room);

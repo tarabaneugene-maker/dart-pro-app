@@ -456,7 +456,13 @@ class GameServer {
     }
 
     final roomId = message['roomId'] as String? ?? '';
-    final (room, error) = _rooms.acceptJoin(roomId, userId);
+    final targetUserId = message['targetUserId'] as String? ?? '';
+    if (targetUserId.isEmpty) {
+      _send(ws, {'type': 'error', 'message': 'Не указан игрок'});
+      return;
+    }
+
+    final (room, error) = _rooms.acceptJoin(roomId, userId, targetUserId);
     if (room == null) {
       _send(ws, {'type': 'error', 'message': error ?? 'Ошибка'});
       return;
@@ -482,7 +488,13 @@ class GameServer {
     }
 
     final roomId = message['roomId'] as String? ?? '';
-    final (room, rejectedUserId) = _rooms.rejectJoin(roomId, userId);
+    final targetUserId = message['targetUserId'] as String? ?? '';
+    if (targetUserId.isEmpty) {
+      _send(ws, {'type': 'error', 'message': 'Не указан игрок'});
+      return;
+    }
+
+    final (room, rejectedUserId) = _rooms.rejectJoin(roomId, userId, targetUserId);
     if (room == null) {
       _send(ws, {'type': 'error', 'message': 'Ошибка'});
       return;
@@ -504,9 +516,31 @@ class GameServer {
       }
     }
 
-    // Обновляем лобби — коммента снова доступна
+    // Уведомляем создателя об обновлённом списке ожидающих
+    _sendPendingPlayersUpdate(room);
+
+    // Обновляем лобби — комната снова доступна
     _broadcastLobbyUpdate();
   }
+
+  /// Отправить создателю комнаты обновлённый список ожидающих игроков
+  void _sendPendingPlayersUpdate(Room room) {
+    final creatorWs = _clients[room.creator?.userId];
+    if (creatorWs != null) {
+      _send(creatorWs, {
+        'type': 'pending_players_updated',
+        'roomId': room.id,
+        'players': room.pendingPlayers
+            .map((p) => {
+              'userId': p.userId,
+              'name': p.name,
+              'avg': p.avg,
+            })
+            .toList(),
+      });
+    }
+  }
+
 
   void _handleJoinByCode(WebSocketChannel ws, Map<String, dynamic> message) {
     final userId = _clientUsers[ws];

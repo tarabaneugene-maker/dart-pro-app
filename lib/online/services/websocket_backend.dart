@@ -345,7 +345,15 @@ class WebSocketBackend implements BackendService {
   Future<void> acceptJoin(String roomId) async {
     await ensureConnected();
     await waitForAuth();
+    // Для обратной совместимости — без targetUserId не отправляем
     _send({'type': 'accept_join', 'roomId': roomId});
+  }
+
+  /// Принять конкретного игрока
+  Future<void> acceptPlayer(String roomId, String targetUserId) async {
+    await ensureConnected();
+    await waitForAuth();
+    _send({'type': 'accept_join', 'roomId': roomId, 'targetUserId': targetUserId});
   }
 
   @override
@@ -354,6 +362,14 @@ class WebSocketBackend implements BackendService {
     await waitForAuth();
     _send({'type': 'reject_join', 'roomId': roomId});
   }
+
+  /// Отклонить конкретного игрока
+  Future<void> rejectPlayer(String roomId, String targetUserId) async {
+    await ensureConnected();
+    await waitForAuth();
+    _send({'type': 'reject_join', 'roomId': roomId, 'targetUserId': targetUserId});
+  }
+
 
   @override
   Future<void> joinByCode(String code, String playerName,
@@ -518,7 +534,18 @@ class WebSocketBackend implements BackendService {
         ));
         break;
 
+      case 'pending_players_updated':
+        final players = (message['players'] as List)
+            .map((p) => RoomPlayerInfo.fromJson(p as Map<String, dynamic>))
+            .toList();
+        _eventController.add(PendingPlayersUpdateEvent(
+          roomId: message['roomId'] as String,
+          players: players,
+        ));
+        break;
+
       case 'game_started':
+
         _eventController.add(GameStartedEvent(
           RoomState.fromJson(message['room'] as Map<String, dynamic>),
         ));
