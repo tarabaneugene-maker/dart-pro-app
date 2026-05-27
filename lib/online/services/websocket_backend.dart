@@ -391,7 +391,7 @@ class WebSocketBackend implements BackendService {
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
     _streamSub?.cancel();
-    _eventController.close();
+    // НЕ закрываем _eventController — он final, подписки могут быть живы
     _channel?.sink.close();
     _channel = null;
     _connected = false;
