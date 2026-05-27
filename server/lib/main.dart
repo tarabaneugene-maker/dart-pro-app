@@ -187,11 +187,14 @@ class GameServer {
     final file = File(filePath);
     if (file.existsSync()) {
       final mimeType = lookupMimeType(filePath) ?? 'application/octet-stream';
+      // JS и WASM файлы не кэшируем — Flutter Web обновляется часто
+      final isFlutterAsset = filePath.endsWith('.js') || filePath.endsWith('.wasm');
+      final cacheControl = isFlutterAsset ? 'no-cache' : 'public, max-age=3600';
       request.response
         ..statusCode = 200
         ..headers.contentType = ContentType.parse(mimeType)
         ..headers.set('Access-Control-Allow-Origin', '*')
-        ..headers.set('Cache-Control', 'public, max-age=3600')
+        ..headers.set('Cache-Control', cacheControl)
         ..add(file.readAsBytesSync())
         ..close();
     } else {
