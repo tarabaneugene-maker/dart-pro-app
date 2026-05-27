@@ -7,13 +7,13 @@ String resolveServerUrl() {
   if (kIsWeb) {
     final hostname = Uri.base.host;
     final scheme = Uri.base.scheme;
+    final port = Uri.base.port;
     // Если страница загружена по HTTPS — используем WSS (production)
     if (scheme == 'https') {
       return 'wss://$hostname/ws';
     }
-    // Для локального dev-сервера (HTTP) — Dart-сервер всегда на 8080
-    // Uri.base.port — это порт dev-сервера (например 5173), а не Dart-сервера
-    return 'ws://$hostname:8080/ws';
+    // Для HTTP — используем тот же порт, что и страница (например 9090)
+    return 'ws://$hostname:$port/ws';
   }
   return 'ws://localhost:8080/ws';
 }
