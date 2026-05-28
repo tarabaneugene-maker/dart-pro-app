@@ -707,44 +707,44 @@ class _GameDartInputPanelState extends State<GameDartInputPanel> {
         // Ряд 2: [1] [2] [3]
         Row(
           children: [
-            _numButton('1', () => widget.onDigit?.call('1')),
+            Expanded(child: _numButton('1', () => widget.onDigit?.call('1'))),
             const SizedBox(width: 8),
-            _numButton('2', () => widget.onDigit?.call('2')),
+            Expanded(child: _numButton('2', () => widget.onDigit?.call('2'))),
             const SizedBox(width: 8),
-            _numButton('3', () => widget.onDigit?.call('3')),
+            Expanded(child: _numButton('3', () => widget.onDigit?.call('3'))),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         // Ряд 3: [4] [5] [6]
         Row(
           children: [
-            _numButton('4', () => widget.onDigit?.call('4')),
+            Expanded(child: _numButton('4', () => widget.onDigit?.call('4'))),
             const SizedBox(width: 8),
-            _numButton('5', () => widget.onDigit?.call('5')),
+            Expanded(child: _numButton('5', () => widget.onDigit?.call('5'))),
             const SizedBox(width: 8),
-            _numButton('6', () => widget.onDigit?.call('6')),
+            Expanded(child: _numButton('6', () => widget.onDigit?.call('6'))),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         // Ряд 4: [7] [8] [9]
         Row(
           children: [
-            _numButton('7', () => widget.onDigit?.call('7')),
+            Expanded(child: _numButton('7', () => widget.onDigit?.call('7'))),
             const SizedBox(width: 8),
-            _numButton('8', () => widget.onDigit?.call('8')),
+            Expanded(child: _numButton('8', () => widget.onDigit?.call('8'))),
             const SizedBox(width: 8),
-            _numButton('9', () => widget.onDigit?.call('9')),
+            Expanded(child: _numButton('9', () => widget.onDigit?.call('9'))),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         // Ряд 5: [⌫] [0] [↩]
         Row(
           children: [
-            _numButton('⌫', () => widget.onClear?.call()),
+            Expanded(child: _numButton('⌫', () => widget.onClear?.call())),
             const SizedBox(width: 8),
-            _numButton('0', () => widget.onDigit?.call('0')),
+            Expanded(child: _numButton('0', () => widget.onDigit?.call('0'))),
             const SizedBox(width: 8),
-            _numButton('↩', () => widget.onUndo?.call()),
+            Expanded(child: _numButton('↩', () => widget.onUndo?.call())),
           ],
         ),
       ],
@@ -797,7 +797,7 @@ class _GameDartInputPanelState extends State<GameDartInputPanel> {
           ],
         ),
         const SizedBox(height: 6),
-        // Ряд 4: [0] [DOUBLE] [TRIPLE] [НАЗАД]
+        // Ряд 4: [0] [DOUBLE] [TRIPLE] [OK] [↩]
         Row(
           children: [
             Expanded(
@@ -812,6 +812,19 @@ class _GameDartInputPanelState extends State<GameDartInputPanel> {
             Expanded(
               flex: 2,
               child: _modifierButton('T', 'TRIPLE'),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: FilledButton(
+                onPressed: widget.onSubmit,
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                child: const Text('OK', style: TextStyle(fontSize: 13)),
+              ),
             ),
             const SizedBox(width: 4),
             Expanded(

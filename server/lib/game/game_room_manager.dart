@@ -67,6 +67,7 @@ class GameRoomManager {
     }
 
     room.pendingPlayers.add(RoomPlayer(userId: userId, name: userName, avg: avg));
+    _playerRoom[userId] = roomId;
     return (room, null);
   }
 
@@ -267,6 +268,7 @@ class GameRoomManager {
     if (room == null) return;
 
     room.players.removeWhere((p) => p.userId == userId);
+    room.pendingPlayers.removeWhere((p) => p.userId == userId);
     _playerRoom.remove(userId);
 
     if (room.isEmpty) {

@@ -440,6 +440,7 @@ class _GamePage501State extends State<GamePage501> {
         _currentDartIndex++;
         _selectedModifier = 'S';
       }
+      // Если ввели 3-й бросок — не авто-отправляем, ждём OK
     });
   }
 
@@ -502,7 +503,7 @@ class _GamePage501State extends State<GamePage501> {
             _buildStatusBar(theme),
             // Табло (общий виджет)
             Expanded(
-              flex: 4,
+              flex: 3,
               child: GameScoreBoard(state: _buildBoardState()),
             ),
             // Строка бросков / быстрые суммы (общий виджет)

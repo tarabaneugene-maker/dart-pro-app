@@ -1,0 +1,9 @@
+﻿git : To https://github.com/tarabaneugene-maker/dart-pro-app.git
+строка:1 знак:21
++ cd d:\dart_pro_app; git push origin main 2>&1 | Out-File -FilePath d: ...
++                     ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://gith...art-pro-app.git:String) [], RemoteExceptio 
+   n
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   733b029..e74b509  main -> main
