@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Игровые модули
 import 'game/local_game_menu_page.dart';
@@ -13,8 +12,11 @@ import 'training/training_page.dart';
 import 'online/services/backend_service.dart';
 import 'online/services/websocket_backend.dart';
 import 'online/auth/login_page.dart';
-import 'online/lobby_page.dart';
+import 'online/profile/profile_page.dart';
 import 'online/server_url.dart';
+
+// Виджеты
+import 'widgets/stub_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +51,7 @@ class DartsApp extends StatelessWidget {
   }
 }
 
-/// Главная страница с навигацией
+/// Главная страница с меню
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -58,22 +60,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
   final WebSocketBackend _backend = WebSocketBackend();
   bool _backendConnected = false;
   StreamSubscription? _backendSub;
-
-  // Для авто-входа: кэшируем страницу онлайн, чтобы не пересоздавать
-  Widget? _onlinePage;
-  bool _onlinePageBuilt = false;
-
-  static const List<String> _titles = <String>['Тренировка', 'Игра', 'Онлайн'];
 
   @override
   void initState() {
     super.initState();
     _connectBackend();
-    // Слушаем события, чтобы обновлять иконку WiFi в реальном времени
     _backendSub = _backend.events.listen((event) {
       if (event is PongEvent || event is AuthOkEvent) {
         if (mounted) setState(() => _backendConnected = _backend.isConnected);
@@ -90,7 +84,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _connectBackend() async {
     final serverUrl = resolveServerUrl();
-
     debugPrint('Подключаюсь к серверу: $serverUrl');
     try {
       await _backend.connect(serverUrl);
@@ -105,60 +98,176 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Widget _buildOnlinePage() {
-    // LoginPage сама проверит токен и сделает авто-вход
-    return LoginPage(backend: _backend);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = <Widget>[
-      const TrainingPage(),
-      const LocalGameMenuPage(),
-      _buildOnlinePage(),
-    ];
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            Text(_titles[_selectedIndex]),
-            if (_selectedIndex == 2) ...[
-              const SizedBox(width: 8),
-              Icon(
-                _backendConnected ? Icons.wifi : Icons.wifi_off,
-                color: _backendConnected ? Colors.green : Colors.red,
-                size: 18,
-              ),
-            ],
+            const Text('Darts Pro'),
+            const Spacer(),
+            Icon(
+              _backendConnected ? Icons.wifi : Icons.wifi_off,
+              color: _backendConnected ? Colors.green : Colors.red,
+              size: 18,
+            ),
           ],
         ),
       ),
-      body: SafeArea(child: pages[_selectedIndex]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.fitness_center_outlined),
-            selectedIcon: Icon(Icons.fitness_center),
-            label: 'Тренировка',
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            children: [
+              _MenuTile(
+                icon: Icons.sports_martial_arts,
+                title: 'Локальная игра',
+                subtitle: '501, Cricket с ботами',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LocalGameMenuPage(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.fitness_center,
+                title: 'Тренировка',
+                subtitle: 'Сектор, Around the Clock',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const TrainingPage(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.language,
+                title: 'Онлайн',
+                subtitle: _backendConnected
+                    ? 'Подключено к серверу'
+                    : 'Нет подключения к серверу',
+                trailing: _backendConnected
+                    ? null
+                    : Icon(Icons.wifi_off, size: 18, color: Colors.red.shade300),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => LoginPage(backend: _backend),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.bar_chart,
+                title: 'Статистика',
+                subtitle: 'История матчей, рейтинг',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProfilePage(backend: _backend),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.settings,
+                title: 'Настройки',
+                subtitle: 'Язык, звук, оформление',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const StubPage(
+                        icon: Icons.settings,
+                        title: 'Настройки',
+                        description: 'Страница в разработке',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.sports_martial_arts_outlined),
-            selectedIcon: Icon(Icons.sports_martial_arts),
-            label: 'Игра',
+        ),
+      ),
+    );
+  }
+}
+
+/// Прямоугольная плитка меню с иконкой слева и названием
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _MenuTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 28, color: colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.language_outlined),
-            selectedIcon: Icon(Icons.language),
-            label: 'Онлайн',
-          ),
-        ],
+        ),
       ),
     );
   }

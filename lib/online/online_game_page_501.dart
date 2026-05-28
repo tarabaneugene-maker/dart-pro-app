@@ -220,6 +220,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   // ===================================================================
 
   void _onSumDigit(String digit) {
+    if (!_isMyTurn) return;
     setState(() {
       if (_inputBuffer.length < 3) {
         _inputBuffer += digit;
@@ -228,6 +229,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   }
 
   void _onSumClear() {
+    if (!_isMyTurn) return;
     setState(() {
       if (_inputBuffer.isNotEmpty) {
         _inputBuffer = _inputBuffer.substring(0, _inputBuffer.length - 1);
@@ -236,10 +238,12 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   }
 
   void _onQuickSum(int value) {
+    if (!_isMyTurn) return;
     _submitThrow(value);
   }
 
   void _onSubmitSum() {
+    if (!_isMyTurn) return;
     if (_inputBuffer.isEmpty) return;
     final value = int.tryParse(_inputBuffer);
     if (value == null) return;
@@ -250,6 +254,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   }
 
   void _onRemainder() {
+    if (!_isMyTurn) return;
     if (_inputBuffer.isEmpty) return;
     final value = int.tryParse(_inputBuffer);
     if (value == null) return;
@@ -477,23 +482,22 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       );
     }
 
-    if (!_isMyTurn) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        color: Colors.grey.withValues(alpha: 0.1),
-        child: const Center(
-          child: Text(
-            'Ход соперника...',
-            style: TextStyle(fontSize: 18),
-          ),
-        ),
-      );
-    }
-
-    // Мой ход — показываем панель ввода
-    // Определяем режим ввода: для онлайн используем сумму подхода (упрощённо)
+    // Всегда показываем панель ввода, даже если не наш ход
     return Column(
       children: [
+        // Плашка "Ход соперника" — только когда не наш ход
+        if (!_isMyTurn)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            color: Colors.grey.withValues(alpha: 0.15),
+            child: const Center(
+              child: Text(
+                '⏳ Ход соперника',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
         // Строка бросков / быстрые суммы
         GameDartStatusBar(
           dartEntries: _dartEntries,

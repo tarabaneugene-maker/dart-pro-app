@@ -435,6 +435,7 @@ class _GamePage501State extends State<GamePage501> {
       _dartEntries[_currentDartIndex] = DartEntryDisplay(
         modifier: modifier,
         number: number,
+        isSet: true,
       );
       if (_currentDartIndex < 2) {
         _currentDartIndex++;
@@ -627,6 +628,7 @@ class _GamePage501State extends State<GamePage501> {
           setsWon: state.setsWon,
           average: state.average,
           lastApproach: state.lastApproach,
+          dartsInLeg: state.dartsInLeg,
           isActive: _currentPlayerIndex == i,
         );
       }).toList(),

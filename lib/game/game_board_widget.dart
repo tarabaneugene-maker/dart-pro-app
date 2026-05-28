@@ -12,6 +12,7 @@ class PlayerBoardInfo {
   final int setsWon;
   final double? average;
   final int? lastApproach;
+  final int dartsInLeg;
   final bool isActive;
 
   const PlayerBoardInfo({
@@ -21,6 +22,7 @@ class PlayerBoardInfo {
     this.setsWon = 0,
     this.average,
     this.lastApproach,
+    this.dartsInLeg = 0,
     this.isActive = false,
   });
 }
@@ -138,9 +140,9 @@ class GameScoreBoard extends StatelessWidget {
 
   Widget _buildPlayerColumn(ThemeData theme, PlayerBoardInfo player) {
     return Container(
-      // Изменение 2: фон колонки активного игрока подсвечен
+      // Подсветка активного игрока — тёмно-зелёный
       color: player.isActive
-          ? theme.colorScheme.surfaceContainerHighest
+          ? Colors.green.shade900
           : null,
       padding: const EdgeInsets.all(8),
       child: Column(
@@ -193,14 +195,38 @@ class GameScoreBoard extends StatelessWidget {
               ),
             ),
           ),
-          // Последний подход
-          if (player.lastApproach != null)
-            Text(
-              '← ${player.lastApproach}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          // Нижняя строка: последний подход слева, дротики справа
+          Row(
+            children: [
+              // Последний подход
+              if (player.lastApproach != null)
+                Text(
+                  '← ${player.lastApproach}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              const Spacer(),
+              // Счётчик дротиков
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.north_east,
+                    size: 13,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${player.dartsInLeg}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -399,9 +425,10 @@ class GameScoreBoard extends StatelessWidget {
 class DartEntryDisplay {
   final String modifier; // 'S', 'D', 'T'
   final int number;
-  bool get isEmpty => number == 0 && modifier == 'S';
+  final bool isSet; // true = игрок ввёл значение (включая 0-мимо)
+  bool get isEmpty => !isSet;
 
-  const DartEntryDisplay({this.modifier = 'S', this.number = 0});
+  const DartEntryDisplay({this.modifier = 'S', this.number = 0, this.isSet = false});
 
   String get display {
     if (isEmpty) return '';
