@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Прямоугольная плитка режима тренировки в стиле главной страницы
 class TrainingModeCard extends StatelessWidget {
   final String title;
   final String description;
@@ -16,13 +17,49 @@ class TrainingModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(description),
-        trailing: const Icon(Icons.chevron_right),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 28, color: colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -55,7 +92,7 @@ class TrainingInputMenu extends StatelessWidget {
     final List<int> keypadValues =
         List<int>.generate(cappedMaxValue, (int index) => index + 1);
     final int totalKeys = keypadValues.length + 1;
-    
+
     final ButtonStyle compactButtonStyle = ElevatedButton.styleFrom(
       minimumSize: const Size(0, 34),
       maximumSize: const Size(double.infinity, 34),
@@ -65,6 +102,9 @@ class TrainingInputMenu extends StatelessWidget {
       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
     );
 
     return Column(
@@ -84,7 +124,7 @@ class TrainingInputMenu extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           decoration: BoxDecoration(
             color: colors.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(4),
             border: Border.all(color: colors.primary, width: 1.5),
           ),
           child: Text(
@@ -121,12 +161,14 @@ class TrainingInputMenu extends StatelessWidget {
             if (index == keypadValues.length) {
               return ElevatedButton(
                 style: compactButtonStyle,
-                onPressed: disabled ? null : () {
-                  if (pendingInputValue == null) {
-                    onValueSelected(0);
-                  }
-                  onConfirm();
-                },
+                onPressed: disabled
+                    ? null
+                    : () {
+                        if (pendingInputValue == null) {
+                          onValueSelected(0);
+                        }
+                        onConfirm();
+                      },
                 child: const Text('Ок / 0'),
               );
             }

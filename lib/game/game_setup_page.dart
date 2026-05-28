@@ -41,12 +41,12 @@ class _GameSetupPageState extends State<GameSetupPage> {
     setState(() {
       final newPlayers = List<PlayerConfig>.from(_settings.players);
       newPlayers.removeAt(index);
-      
+
       int newStartingIndex = _settings.startingPlayerIndex;
       if (_settings.startingPlayerIndex >= newPlayers.length) {
         newStartingIndex = 0;
       }
-      
+
       _settings = _settings.copyWith(
         players: newPlayers,
         startingPlayerIndex: newStartingIndex,
@@ -63,103 +63,140 @@ class _GameSetupPageState extends State<GameSetupPage> {
   }
 
   Widget _buildPlayerCard(int index) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final player = _settings.players[index];
-    return Card(
+
+    return Container(
+      width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: player.name,
+                  decoration: const InputDecoration(
+                    labelText: 'Имя игрока',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) =>
+                      _updatePlayer(index, player.copyWith(name: value)),
+                ),
+              ),
+              if (_settings.players.length > 2)
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: () => _removePlayer(index),
+                  tooltip: 'Удалить игрока',
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Бот'),
+            value: player.isBot,
+            onChanged: (value) {
+              _updatePlayer(
+                index,
+                player.copyWith(
+                  isBot: value,
+                  botLevel: value ? BotLevel.amateur45_55 : null,
+                ),
+              );
+            },
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (player.isBot) ...[
+            DropdownButtonFormField<BotLevel>(
+              initialValue: player.botLevel ?? BotLevel.amateur45_55,
+              decoration: const InputDecoration(labelText: 'Уровень бота'),
+              items: BotLevel.values
+                  .map((level) => DropdownMenuItem(
+                        value: level,
+                        child: Text(level.description),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  _updatePlayer(index, player.copyWith(botLevel: value));
+                }
+              },
+            ),
+          ] else ...[
+            const SizedBox(height: 4),
+            Text('Ввод бросков:',
+              style: theme.textTheme.labelMedium,
+            ),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    initialValue: player.name,
-                    decoration: const InputDecoration(
-                      labelText: 'Имя игрока',
-                      border: OutlineInputBorder(),
+                  child: _rectToggleButton(
+                    label: 'Сумма',
+                    selected: player.inputMode == InputMode.threeDarts,
+                    onTap: () => _updatePlayer(
+                      index,
+                      player.copyWith(inputMode: InputMode.threeDarts),
                     ),
-                    onChanged: (value) =>
-                        _updatePlayer(index, player.copyWith(name: value)),
                   ),
                 ),
-                if (_settings.players.length > 2)
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () => _removePlayer(index),
-                    tooltip: 'Удалить игрока',
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _rectToggleButton(
+                    label: 'По броскам',
+                    selected: player.inputMode == InputMode.oneDart,
+                    onTap: () => _updatePlayer(
+                      index,
+                      player.copyWith(inputMode: InputMode.oneDart),
+                    ),
                   ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              title: const Text('Бот'),
-              value: player.isBot,
-              onChanged: (value) {
-                _updatePlayer(
-                  index,
-                  player.copyWith(
-                    isBot: value,
-                    botLevel: value ? BotLevel.amateur45_55 : null,
-                  ),
-                );
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (player.isBot) ...[
-              DropdownButtonFormField<BotLevel>(
-                initialValue: player.botLevel ?? BotLevel.amateur45_55,
-                decoration: const InputDecoration(labelText: 'Уровень бота'),
-                items: BotLevel.values
-                    .map((level) => DropdownMenuItem(
-                          value: level,
-                          child: Text(level.description),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    _updatePlayer(index, player.copyWith(botLevel: value));
-                  }
-                },
-              ),
-            ] else ...[
-              const SizedBox(height: 4),
-              Text('Ввод бросков:',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Text('Сумма', style: TextStyle(fontSize: 13)),
-                      selected: player.inputMode == InputMode.threeDarts,
-                      onSelected: (_) => _updatePlayer(
-                        index,
-                        player.copyWith(inputMode: InputMode.threeDarts),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Text('По броскам', style: TextStyle(fontSize: 13)),
-                      selected: player.inputMode == InputMode.oneDart,
-                      onSelected: (_) => _updatePlayer(
-                        index,
-                        player.copyWith(inputMode: InputMode.oneDart),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
+
+  Widget _rectToggleButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    if (selected) {
+      return FilledButton(
+        onPressed: onTap,
+        style: _rectFilledStyle,
+        child: Text(label, style: const TextStyle(fontSize: 13)),
+      );
+    }
+    return OutlinedButton(
+      onPressed: onTap,
+      style: _rectOutlinedStyle,
+      child: Text(label, style: const TextStyle(fontSize: 13)),
+    );
+  }
+
+  static final ButtonStyle _rectFilledStyle = FilledButton.styleFrom(
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(4),
+    ),
+  );
+
+  static final ButtonStyle _rectOutlinedStyle = OutlinedButton.styleFrom(
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(4),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {

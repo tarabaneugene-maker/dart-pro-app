@@ -8,60 +8,104 @@ class LocalGameMenuPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Text('Локальные игры', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        GameModeTile(
-          icon: Icons.track_changes_outlined,
-          title: 'Cricket',
-          description: 'Классический Cricket с ботами',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CricketSetupPage()),
-            );
-          },
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Локальные игры')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            children: [
+              _GameModeTile(
+                icon: Icons.track_changes_outlined,
+                title: 'Cricket',
+                subtitle: 'Классический Cricket с ботами',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CricketSetupPage()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _GameModeTile(
+                icon: Icons.looks_5_outlined,
+                title: '501',
+                subtitle: 'Стандартный режим 501 с ботами',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const GameSetupPage()),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        GameModeTile(
-          icon: Icons.looks_5_outlined,
-          title: '501',
-          description: 'Стандартный режим 501 с ботами',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const GameSetupPage()),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 }
 
-class GameModeTile extends StatelessWidget {
+/// Прямоугольная плитка режима игры в стиле главной страницы
+class _GameModeTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String description;
+  final String subtitle;
   final VoidCallback onTap;
 
-  const GameModeTile({
-    super.key,
+  const _GameModeTile({
     required this.icon,
     required this.title,
-    required this.description,
+    required this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(description),
-        trailing: const Icon(Icons.chevron_right),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 28, color: colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
