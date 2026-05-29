@@ -568,6 +568,7 @@ class WebSocketBackend implements BackendService {
         _eventController.add(LegWonEvent(
           winnerIndex: message['winnerIndex'] as int,
           scores: (message['scores'] as List).cast<int>(),
+          currentPlayerIndex: message['currentPlayerIndex'] as int,
         ));
         break;
 

@@ -107,7 +107,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
             code: _room.code,
             players: _room.players,
             status: _room.status,
-            currentPlayerIndex: _room.currentPlayerIndex,
+            currentPlayerIndex: e.currentPlayerIndex,
             scores: [501, 501],
             legsWon: e.scores,
             dartsInLeg: [0, 0],

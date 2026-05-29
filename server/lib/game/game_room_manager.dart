@@ -220,9 +220,13 @@ class GameRoomManager {
         room.lastApproach[i] = null;
       }
 
+      // Чередование: следующий лег начинает другой игрок
+      room.currentPlayerIndex = (playerIndex + 1) % room.players.length;
+
       return {
         'type': 'leg_won',
         'winnerIndex': playerIndex,
+        'currentPlayerIndex': room.currentPlayerIndex,
         'scores': room.legsWon,
       };
     }

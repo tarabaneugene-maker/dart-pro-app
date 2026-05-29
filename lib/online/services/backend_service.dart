@@ -201,7 +201,8 @@ class ThrowResultEvent extends ServerEvent {
 class LegWonEvent extends ServerEvent {
   final int winnerIndex;
   final List<int> scores;
-  LegWonEvent({required this.winnerIndex, required this.scores});
+  final int currentPlayerIndex;
+  LegWonEvent({required this.winnerIndex, required this.scores, required this.currentPlayerIndex});
 }
 
 class MatchWonEvent extends ServerEvent {
