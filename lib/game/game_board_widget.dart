@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/checkouts.dart';
+import '../widgets/checkouts_page.dart';
 
 // ===================================================================
 // DATA CLASSES — единое представление состояния игры для виджетов
@@ -92,6 +94,7 @@ class GameScoreBoard extends StatelessWidget {
 
   Widget _buildActivePlayerBanner(ThemeData theme, PlayerBoardInfo player) {
     final showCheckout = player.score <= 170 && player.score > 0;
+    final checkout = showCheckout ? getCheckout(player.score) : null;
 
     return Container(
       width: double.infinity,
@@ -104,35 +107,54 @@ class GameScoreBoard extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Имя игрока слева
           Expanded(
+            child: Text(
+              player.name,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          // Чекаут / CheckOuts + счёт справа
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CheckOutsPage(),
+                ),
+              );
+            },
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  player.name,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (showCheckout)
+                if (checkout != null)
                   Text(
-                    _getCheckoutHint(player.score),
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    '${checkout.first} ${checkout.second}${checkout.third != null ? ' ${checkout.third}' : ''}',
+                    style: theme.textTheme.titleSmall?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w600,
                     ),
+                  )
+                else
+                  Text(
+                    'CheckOuts',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
+                Text(
+                  '${player.score}',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                    height: 1.0,
+                  ),
+                ),
               ],
-            ),
-          ),
-          Text(
-            '${player.score}',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-              height: 1.0,
             ),
           ),
         ],

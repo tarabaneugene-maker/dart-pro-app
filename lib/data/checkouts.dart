@@ -1,0 +1,133 @@
+/// Данные чекаутов из D:\CheckOuts.xlsx
+class CheckoutEntry {
+  final int score;
+  final String first;
+  final String second;
+  final String? third; // null для two-dart finishes
+
+  const CheckoutEntry({
+    required this.score,
+    required this.first,
+    required this.second,
+    this.third,
+  });
+}
+
+/// Все чекауты (three-dart finishes 170→99, two-dart finishes 100→61)
+const List<CheckoutEntry> allCheckouts = [
+  // Three Dart Finishes
+  CheckoutEntry(score: 170, first: 'T20', second: 'T20', third: 'Bull'),
+  CheckoutEntry(score: 167, first: 'T20', second: 'T19', third: 'Bull'),
+  CheckoutEntry(score: 164, first: 'T20', second: 'T18', third: 'Bull'),
+  CheckoutEntry(score: 161, first: 'T20', second: 'T17', third: 'Bull'),
+  CheckoutEntry(score: 160, first: 'T20', second: 'T20', third: 'D20'),
+  CheckoutEntry(score: 158, first: 'T20', second: 'T20', third: 'D19'),
+  CheckoutEntry(score: 157, first: 'T20', second: 'T19', third: 'D20'),
+  CheckoutEntry(score: 156, first: 'T20', second: 'T20', third: 'D18'),
+  CheckoutEntry(score: 155, first: 'T20', second: 'T19', third: 'D19'),
+  CheckoutEntry(score: 154, first: 'T20', second: 'T18', third: 'D20'),
+  CheckoutEntry(score: 153, first: 'T20', second: 'T19', third: 'D18'),
+  CheckoutEntry(score: 152, first: 'T20', second: 'T20', third: 'D16'),
+  CheckoutEntry(score: 151, first: 'T20', second: 'T17', third: 'D20'),
+  CheckoutEntry(score: 150, first: 'T20', second: 'T18', third: 'D18'),
+  CheckoutEntry(score: 149, first: 'T20', second: 'T19', third: 'D16'),
+  CheckoutEntry(score: 148, first: 'T20', second: 'T16', third: 'D20'),
+  CheckoutEntry(score: 147, first: 'T20', second: 'T17', third: 'D18'),
+  CheckoutEntry(score: 146, first: 'T20', second: 'T18', third: 'D16'),
+  CheckoutEntry(score: 145, first: 'T20', second: 'T15', third: 'D20'),
+  CheckoutEntry(score: 144, first: 'T20', second: 'T20', third: 'D12'),
+  CheckoutEntry(score: 143, first: 'T20', second: 'T17', third: 'D16'),
+  CheckoutEntry(score: 142, first: 'T20', second: 'T14', third: 'D20'),
+  CheckoutEntry(score: 141, first: 'T20', second: 'T19', third: 'D12'),
+  CheckoutEntry(score: 140, first: 'T20', second: 'T16', third: 'D16'),
+  CheckoutEntry(score: 139, first: 'T19', second: 'T14', third: 'D20'),
+  CheckoutEntry(score: 138, first: 'T20', second: 'T18', third: 'D12'),
+  CheckoutEntry(score: 137, first: 'T19', second: 'T16', third: 'D16'),
+  CheckoutEntry(score: 136, first: 'T20', second: 'T20', third: 'D8'),
+  CheckoutEntry(score: 135, first: 'T20', second: 'T17', third: 'D12'),
+  CheckoutEntry(score: 134, first: 'T20', second: 'T14', third: 'D16'),
+  CheckoutEntry(score: 133, first: 'T20', second: 'T19', third: 'D8'),
+  CheckoutEntry(score: 132, first: 'T20', second: 'T16', third: 'D12'),
+  CheckoutEntry(score: 131, first: 'T20', second: 'T13', third: 'D16'),
+  CheckoutEntry(score: 130, first: 'T20', second: 'T20', third: 'D5'),
+  CheckoutEntry(score: 129, first: 'T19', second: 'T16', third: 'D12'),
+  CheckoutEntry(score: 128, first: 'T18', second: 'T14', third: 'D16'),
+  CheckoutEntry(score: 127, first: 'T20', second: 'T17', third: 'D8'),
+  CheckoutEntry(score: 126, first: 'T19', second: 'T19', third: 'D6'),
+  CheckoutEntry(score: 125, first: '25', second: 'T20', third: 'D20'),
+  CheckoutEntry(score: 124, first: 'T20', second: 'T16', third: 'D8'),
+  CheckoutEntry(score: 123, first: 'T19', second: 'T16', third: 'D9'),
+  CheckoutEntry(score: 122, first: 'T18', second: 'T20', third: 'D4'),
+  CheckoutEntry(score: 121, first: 'T17', second: 'T10', third: 'D20'),
+  CheckoutEntry(score: 120, first: 'T20', second: '20', third: 'D20'),
+  CheckoutEntry(score: 119, first: 'T19', second: 'T10', third: 'D16'),
+  CheckoutEntry(score: 118, first: 'T20', second: '18', third: 'D20'),
+  CheckoutEntry(score: 117, first: 'T20', second: '17', third: 'D20'),
+  CheckoutEntry(score: 116, first: 'T20', second: '16', third: 'D20'),
+  CheckoutEntry(score: 115, first: 'T20', second: '15', third: 'D20'),
+  CheckoutEntry(score: 114, first: 'T20', second: '14', third: 'D20'),
+  CheckoutEntry(score: 113, first: 'T20', second: '13', third: 'D20'),
+  CheckoutEntry(score: 112, first: 'T20', second: '12', third: 'D20'),
+  CheckoutEntry(score: 111, first: 'T20', second: '19', third: 'D16'),
+  CheckoutEntry(score: 110, first: 'T20', second: '18', third: 'D16'),
+  CheckoutEntry(score: 109, first: 'T19', second: '20', third: 'D16'),
+  CheckoutEntry(score: 108, first: 'T20', second: '16', third: 'D16'),
+  CheckoutEntry(score: 107, first: 'T19', second: '18', third: 'D16'),
+  CheckoutEntry(score: 106, first: 'T20', second: '14', third: 'D16'),
+  CheckoutEntry(score: 105, first: 'T19', second: '16', third: 'D16'),
+  CheckoutEntry(score: 104, first: 'T18', second: '18', third: 'D16'),
+  CheckoutEntry(score: 103, first: 'T20', second: '3', third: 'D20'),
+  CheckoutEntry(score: 102, first: 'T20', second: '10', third: 'D16'),
+  CheckoutEntry(score: 101, first: 'T20', second: '1', third: 'D20'),
+  CheckoutEntry(score: 99, first: 'T19', second: '10', third: 'D16'),
+  // Two Dart Finishes
+  CheckoutEntry(score: 100, first: 'T20', second: 'D20'),
+  CheckoutEntry(score: 98, first: 'T20', second: 'D19'),
+  CheckoutEntry(score: 97, first: 'T19', second: 'D20'),
+  CheckoutEntry(score: 96, first: 'T20', second: 'D18'),
+  CheckoutEntry(score: 95, first: 'T19', second: 'D19'),
+  CheckoutEntry(score: 94, first: 'T18', second: 'D20'),
+  CheckoutEntry(score: 93, first: 'T19', second: 'D18'),
+  CheckoutEntry(score: 92, first: 'T20', second: 'D16'),
+  CheckoutEntry(score: 91, first: 'T17', second: 'D20'),
+  CheckoutEntry(score: 90, first: 'T20', second: 'D15'),
+  CheckoutEntry(score: 89, first: 'T19', second: 'D16'),
+  CheckoutEntry(score: 88, first: 'T16', second: 'D20'),
+  CheckoutEntry(score: 87, first: 'T17', second: 'D18'),
+  CheckoutEntry(score: 86, first: 'T18', second: 'D16'),
+  CheckoutEntry(score: 85, first: 'T15', second: 'D20'),
+  CheckoutEntry(score: 84, first: 'T20', second: 'D12'),
+  CheckoutEntry(score: 83, first: 'T17', second: 'D16'),
+  CheckoutEntry(score: 82, first: 'T14', second: 'D20'),
+  CheckoutEntry(score: 81, first: 'T19', second: 'D12'),
+  CheckoutEntry(score: 80, first: 'T20', second: 'D10'),
+  CheckoutEntry(score: 79, first: 'T19', second: 'D11'),
+  CheckoutEntry(score: 78, first: 'T18', second: 'D12'),
+  CheckoutEntry(score: 77, first: 'T19', second: 'D10'),
+  CheckoutEntry(score: 76, first: 'T20', second: 'D8'),
+  CheckoutEntry(score: 75, first: 'T17', second: 'D12'),
+  CheckoutEntry(score: 74, first: 'T14', second: 'D16'),
+  CheckoutEntry(score: 73, first: 'T19', second: 'D8'),
+  CheckoutEntry(score: 72, first: 'T16', second: 'D12'),
+  CheckoutEntry(score: 71, first: 'T13', second: 'D16'),
+  CheckoutEntry(score: 70, first: 'T10', second: 'D20'),
+  CheckoutEntry(score: 69, first: 'T15', second: 'D12'),
+  CheckoutEntry(score: 68, first: 'T20', second: 'D4'),
+  CheckoutEntry(score: 67, first: 'T17', second: 'D8'),
+  CheckoutEntry(score: 66, first: 'T10', second: 'D18'),
+  CheckoutEntry(score: 65, first: 'T19', second: 'D4'),
+  CheckoutEntry(score: 64, first: 'T16', second: 'D8'),
+  CheckoutEntry(score: 63, first: 'T13', second: 'D12'),
+  CheckoutEntry(score: 62, first: 'T10', second: 'D16'),
+  CheckoutEntry(score: 61, first: 'T15', second: 'D8'),
+  CheckoutEntry(score: 60, first: '20', second: 'D20'),
+];
+
+/// Получить чекаут для конкретного счёта (если есть)
+CheckoutEntry? getCheckout(int score) {
+  try {
+    return allCheckouts.firstWhere((c) => c.score == score);
+  } catch (_) {
+    return null;
+  }
+}
