@@ -14,20 +14,35 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 
 $p = [System.Diagnostics.Process]::Start($psi)
+
+# Асинхронное чтение вывода — предотвращает deadlock
+$outputBuilder = New-Object System.Text.StringBuilder
+$errorBuilder = New-Object System.Text.StringBuilder
+$outputEvent = Register-ObjectEvent -InputObject $p -EventName OutputDataReceived -Action {
+    $outputBuilder.AppendLine($EventArgs.Data) | Out-Null
+}
+$errorEvent = Register-ObjectEvent -InputObject $p -EventName ErrorDataReceived -Action {
+    $errorBuilder.AppendLine($EventArgs.Data) | Out-Null
+}
+$p.BeginOutputReadLine()
+$p.BeginErrorReadLine()
+
 Start-Sleep -Milliseconds 2000
 $p.StandardInput.WriteLine($password1)
 Start-Sleep -Milliseconds 1000
 $p.StandardInput.WriteLine($password2)
 $p.StandardInput.Close()
 
-$output = $p.StandardOutput.ReadToEnd()
-$errorOutput = $p.StandardError.ReadToEnd()
 $p.WaitForExit(600000)  # 10 минут таймаут
 
+# Отписываемся от событий
+Unregister-Event -SourceIdentifier $outputEvent.Name -ErrorAction SilentlyContinue
+Unregister-Event -SourceIdentifier $errorEvent.Name -ErrorAction SilentlyContinue
+
 Write-Host "=== STDOUT ===" -ForegroundColor Cyan
-Write-Output $output
-if ($errorOutput) {
+Write-Output $outputBuilder.ToString()
+if ($errorBuilder.ToString().Trim()) {
     Write-Host "=== STDERR ===" -ForegroundColor Yellow
-    Write-Output $errorOutput
+    Write-Output $errorBuilder.ToString()
 }
 Write-Host "EXIT CODE: $($p.ExitCode)" -ForegroundColor Magenta
