@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/game_settings.dart';
 import '../models/game_enums.dart';
 import '../bots/dart_bot_501.dart';
+import '../bots/dart_throw_simulator.dart';
 import '../utils/dart_utils.dart';
 import 'game_board_widget.dart';
 
@@ -133,16 +134,78 @@ class _GamePage501State extends State<GamePage501> {
     _applyBotDarts(results, 0);
   }
 
-  void _applyBotDarts(List<int> darts, int index) {
+  void _applyBotDarts(List<ThrowResult> darts, int index) {
     if (index >= darts.length) {
       _botThinking = false;
       _nextPlayer();
       return;
     }
-    _submitScore(darts[index], isBot: true);
+    _submitBotDart(darts[index]);
     _botTimer = Timer(const Duration(milliseconds: 600), () {
       _applyBotDarts(darts, index + 1);
     });
+  }
+
+  /// Применить один дротик бота (каждый дротик = +1 к счётчикам)
+  void _submitBotDart(ThrowResult result) {
+    final state = _players[_currentPlayerIndex];
+    final currentScore = state.score;
+    final value = result.score;
+
+    // Сохраняем для undo
+    _undoStack.add(_UndoEntry(
+      playerIndex: _currentPlayerIndex,
+      previousScore: currentScore,
+      previousLegHistory: List.from(state.legHistory),
+      previousDartsInLeg: state.dartsInLeg,
+      previousLastApproach: state.lastApproach,
+      previousTotalScore: state.totalScore,
+      previousTotalDarts: state.totalDarts,
+    ));
+
+    // Проверка bust: сумма > остатка
+    if (value > currentScore) {
+      // Бот bust — просто записываем 0
+      setState(() {
+        state.legHistory.add(0);
+        state.lastApproach = 0;
+        state.dartsInLeg += 1;
+        state.totalDarts += 1;
+        state.average = _calculateAverage(state);
+      });
+      return;
+    }
+
+    // Проверка bust: остаток 1 при Double Out
+    if (widget.settings.finishType == FinishType.doubleOut &&
+        currentScore - value == 1) {
+      setState(() {
+        state.legHistory.add(0);
+        state.lastApproach = 0;
+        state.dartsInLeg += 1;
+        state.totalDarts += 1;
+        state.average = _calculateAverage(state);
+      });
+      return;
+    }
+
+    setState(() {
+      state.score = currentScore - value;
+      state.legHistory.add(value);
+      state.lastApproach = value;
+      state.dartsInLeg += 1;
+      state.totalScore += value;
+      state.totalDarts += 1;
+      state.average = _calculateAverage(state);
+    });
+
+    if (state.score == 0) {
+      // Бот закрыл лег — считаем сколько дротиков использовано в этом подходе
+      // Смотрим сколько раз вызывался _submitBotDart в этом подходе
+      // (считаем по длине legHistory минус предыдущие подходы)
+      final dartsUsed = state.dartsInLeg;
+      _finishLegWithDarts(dartsUsed);
+    }
   }
 
   void _submitScore(int value, {required bool isBot}) {
@@ -324,9 +387,12 @@ class _GamePage501State extends State<GamePage501> {
 
   void _finishLegWithDarts(int dartsUsed) {
     final state = _players[_currentPlayerIndex];
-    // Корректируем totalDarts: было +3 в _submitScore, откатываем и ставим правильное
-    state.totalDarts -= 3;
-    state.totalDarts += dartsUsed;
+    // Для человека: было +3 в _submitScore, откатываем и ставим правильное
+    // Для бота: уже посчитано по +1 за дротик, корректируем
+    if (!_isCurrentPlayerBot) {
+      state.totalDarts -= 3;
+      state.totalDarts += dartsUsed;
+    }
     state.average = _calculateAverage(state);
     _endLeg(dartsUsed: dartsUsed);
   }
@@ -527,7 +593,6 @@ class _GamePage501State extends State<GamePage501> {
         _currentDartIndex++;
         _selectedModifier = 'S';
       }
-      // Если ввели 3-й бросок — не авто-отправляем, ждём OK
     });
   }
 
@@ -588,12 +653,10 @@ class _GamePage501State extends State<GamePage501> {
         child: Column(
           children: [
             _buildStatusBar(theme),
-            // Табло (общий виджет)
             Expanded(
               flex: 3,
               child: GameScoreBoard(state: _buildBoardState()),
             ),
-            // Строка бросков / быстрые суммы (общий виджет)
             GameDartStatusBar(
               dartEntries: _dartEntries,
               currentDartIndex: _currentDartIndex,
@@ -602,7 +665,6 @@ class _GamePage501State extends State<GamePage501> {
                   ? _onQuickSum
                   : null,
             ),
-            // Панель ввода (общий виджет)
             Expanded(
               flex: 6,
               child: _currentInputMode == InputMode.threeDarts
@@ -754,13 +816,11 @@ class _GamePage501State extends State<GamePage501> {
             ),
           ),
           const Spacer(),
-          // Undo
           IconButton(
             icon: const Icon(Icons.undo),
             onPressed: _undoStack.isEmpty ? null : _undo,
             tooltip: 'Отменить ход',
           ),
-          // Статистика (заглушка)
           IconButton(
             icon: const Icon(Icons.bar_chart_outlined),
             onPressed: () {

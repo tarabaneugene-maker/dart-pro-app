@@ -1,6 +1,35 @@
 import 'dart:math';
 import 'target_coordinates.dart';
 
+/// Результат одного броска дротика
+class ThrowResult {
+  final int score;
+  final int segment;    // 1-20, 25 для Bull
+  final int multiplier; // 1 (single), 2 (double), 3 (triple)
+
+  const ThrowResult({
+    required this.score,
+    required this.segment,
+    required this.multiplier,
+  });
+
+  /// Попадание в удвоение (D1-D20 или Bull)
+  bool get isDouble => multiplier == 2;
+
+  /// Попадание в утроение (T1-T20)
+  bool get isTriple => multiplier == 3;
+
+  /// Попадание в Bull (single bull = 25, double bull = 50)
+  bool get isBull => segment == 25;
+
+  /// Попадание в Single (S1-S20 или single bull)
+  bool get isSingle => multiplier == 1 && segment != 25;
+
+  @override
+  String toString() =>
+      'ThrowResult(score: $score, segment: $segment, multiplier: $multiplier)';
+}
+
 /// Симулятор броска дротика с физической моделью
 class DartThrowSimulator {
   static final Random _random = Random();
@@ -13,12 +42,14 @@ class DartThrowSimulator {
     return mean + stdDev * z;
   }
 
-  /// Преобразование координат в очки на мишени
-  static int _getScoreFromCoordinates(double x, double y) {
+  /// Преобразование координат в результат броска на мишени
+  static ThrowResult _getScoreFromCoordinates(double x, double y) {
     double distance = sqrt(x * x + y * y);
 
-    // Если попадание вне мишени
-    if (distance > 170) return 0;
+    // Если попадание вне мишени (за double ring)
+    if (distance > 170) {
+      return const ThrowResult(score: 0, segment: 0, multiplier: 0);
+    }
 
     // Определение сектора
     double angle = atan2(y, x);
@@ -26,20 +57,21 @@ class DartThrowSimulator {
     if (sectorAngle < 0) sectorAngle += 2 * pi;
     int sectorIndex = (sectorAngle / (pi / 10)).floor();
 
+    // Порядок секторов по часовой от 20 (начиная с 12 часов)
     const List<int> sectorMap = [
-      6, 13, 4, 18, 1, 20, 5, 12, 9, 14,
-      11, 8, 16, 7, 19, 3, 17, 2, 15, 10,
+      20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
+      3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
     ];
     int segment = sectorMap[sectorIndex % 20];
 
     // Определение множителя
     int multiplier;
     if (distance <= 6.35) {
-      // Bullseye (double bull)
+      // Double Bull (Bullseye)
       multiplier = 2;
       segment = 25;
     } else if (distance <= 15.9) {
-      // Bull (single bull)
+      // Single Bull
       multiplier = 1;
       segment = 25;
     } else if (distance >= 99 && distance <= 107) {
@@ -53,18 +85,23 @@ class DartThrowSimulator {
       multiplier = 1;
     }
 
-    return segment * multiplier;
+    return ThrowResult(
+      score: segment * multiplier,
+      segment: segment,
+      multiplier: multiplier,
+    );
   }
 
-  /// Симуляция броска по заданным координатам цели
-  static int simulateThrow(double targetX, double targetY, double stdDevMm) {
+  /// Симуляция одного броска по заданным координатам цели
+  static ThrowResult simulateThrow(
+      double targetX, double targetY, double stdDevMm) {
     double hitX = _gaussian(targetX, stdDevMm);
     double hitY = _gaussian(targetY, stdDevMm);
     return _getScoreFromCoordinates(hitX, hitY);
   }
 
   /// Симуляция серии бросков
-  static List<int> simulateThrows({
+  static List<ThrowResult> simulateThrows({
     required double targetX,
     required double targetY,
     required double stdDevMm,
