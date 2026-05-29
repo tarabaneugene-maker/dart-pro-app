@@ -138,6 +138,13 @@ class _GamePage501State extends State<GamePage501> {
 
   void _applyBotDarts(List<ThrowResult> darts, int index) {
     if (index >= darts.length) {
+      // Записываем сумму подхода (сумма всех дротиков в этом подходе)
+      final state = _players[_currentPlayerIndex];
+      final approachSum = darts.fold<int>(0, (sum, d) => sum + d.score);
+      // Проверяем, не был ли bust (если bust — lastApproach уже 0)
+      if (state.lastApproach == null || state.lastApproach != 0) {
+        state.lastApproach = approachSum;
+      }
       _botThinking = false;
       _nextPlayer();
       return;
@@ -173,6 +180,11 @@ class _GamePage501State extends State<GamePage501> {
     final state = _players[_currentPlayerIndex];
     final currentScore = state.score;
     final value = result.score;
+
+    // Если это первый дротик в подходе — очищаем lastApproachDarts
+    if (state.legHistory.length % 3 == 0) {
+      state.lastApproachDarts = [];
+    }
 
     // Сохраняем для undo
     _undoStack.add(_UndoEntry(
@@ -294,12 +306,19 @@ class _GamePage501State extends State<GamePage501> {
       state.totalDarts += 3;
       state.average = _calculateAverage(state);
       // В режиме суммы — сбрасываем per-dart результаты
-      state.lastApproachDarts = [];
+      if (_currentInputMode == InputMode.threeDarts) {
+        state.lastApproachDarts = [];
+      }
     });
 
     if (state.score == 0) {
-      // Используем общее кол-во дротиков в леге
-      _finishLegWithDarts(state.dartsInLeg);
+      // Для человека в per-dart режиме — спрашиваем сколько дротиков в последнем подходе
+      if (!_isCurrentPlayerBot && _currentInputMode == InputMode.oneDart) {
+        _showLegCloseDialog(value);
+      } else {
+        // Для бота или sum-mode — используем общее кол-во дротиков в леге
+        _finishLegWithDarts(state.dartsInLeg);
+      }
       return;
     }
 
@@ -366,16 +385,66 @@ class _GamePage501State extends State<GamePage501> {
     );
   }
 
-  void _finishLegWithDarts(int dartsUsed) {
+  void _showLegCloseDialog(int value) {
+    final state = _players[_currentPlayerIndex];
+    // Общее кол-во дротиков до последнего подхода
+    final dartsBeforeApproach = state.dartsInLeg - 3;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Закрытие лега'),
+        content: const Text('Сколько брошено дротиков?'),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final totalDartsInLeg = dartsBeforeApproach + 1;
+              _finishLegWithDarts(totalDartsInLeg);
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('1'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final totalDartsInLeg = dartsBeforeApproach + 2;
+              _finishLegWithDarts(totalDartsInLeg);
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('2'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final totalDartsInLeg = dartsBeforeApproach + 3;
+              _finishLegWithDarts(totalDartsInLeg);
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('3'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _finishLegWithDarts(int totalDartsInLeg) {
     final state = _players[_currentPlayerIndex];
     // Для человека: было +3 в _submitScore, откатываем и ставим правильное
     // Для бота: уже посчитано по +1 за дротик, корректируем
     if (!_isCurrentPlayerBot) {
       state.totalDarts -= 3;
-      state.totalDarts += dartsUsed;
+      state.totalDarts += totalDartsInLeg;
     }
     state.average = _calculateAverage(state);
-    _endLeg(dartsUsed: dartsUsed);
+    _endLeg(dartsUsed: totalDartsInLeg);
   }
 
   void _endLeg({int dartsUsed = 3}) {
