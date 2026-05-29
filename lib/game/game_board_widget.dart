@@ -72,7 +72,7 @@ class GameScoreBoard extends StatelessWidget {
     return Column(
       children: [
         // Плашка активного игрока
-        _buildActivePlayerBanner(theme, state.currentPlayer),
+        _buildActivePlayerBanner(context, theme, state.currentPlayer),
         // Две колонки игроков
         Expanded(
           child: Row(
@@ -92,7 +92,7 @@ class GameScoreBoard extends StatelessWidget {
     );
   }
 
-  Widget _buildActivePlayerBanner(ThemeData theme, PlayerBoardInfo player) {
+  Widget _buildActivePlayerBanner(BuildContext context, ThemeData theme, PlayerBoardInfo player) {
     final showCheckout = player.score <= 170 && player.score > 0;
     final checkout = showCheckout ? getCheckout(player.score) : null;
 
