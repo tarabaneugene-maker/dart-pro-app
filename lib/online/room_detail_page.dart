@@ -104,11 +104,15 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Запрос отклонён'),
         content: Text('Игрок $creatorName отклонил ваш запрос'),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('OK'),
           ),
         ],
@@ -120,6 +124,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Игра уже началась'),
         content: const Text(
           'Игра уже началась. Попробуйте поискать другую в лобби или создать свою.',
@@ -130,6 +135,9 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop(); // Возврат в лобби
             },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('OK'),
           ),
         ],

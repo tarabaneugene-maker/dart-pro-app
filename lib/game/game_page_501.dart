@@ -15,6 +15,8 @@ class _PlayerGameState {
   int dartsInLeg; // количество брошенных дротиков в текущем леге
   int? lastApproach; // сумма последнего подхода
   double? average;
+  int totalScore; // всего набрано очков за матч
+  int totalDarts; // всего брошено дротиков за матч
 
   _PlayerGameState({required int startScore})
       : score = startScore,
@@ -23,7 +25,9 @@ class _PlayerGameState {
         legHistory = [],
         dartsInLeg = 0,
         lastApproach = null,
-        average = null;
+        average = null,
+        totalScore = 0,
+        totalDarts = 0;
 }
 
 /// Страница игры 501/301
@@ -152,6 +156,8 @@ class _GamePage501State extends State<GamePage501> {
       previousLegHistory: List.from(state.legHistory),
       previousDartsInLeg: state.dartsInLeg,
       previousLastApproach: state.lastApproach,
+      previousTotalScore: state.totalScore,
+      previousTotalDarts: state.totalDarts,
     ));
 
     // Проверка: сумма должна быть достижима тремя дротиками
@@ -197,11 +203,13 @@ class _GamePage501State extends State<GamePage501> {
       state.legHistory.add(value);
       state.lastApproach = value;
       state.dartsInLeg += 3;
+      state.totalScore += value;
+      state.totalDarts += 3;
       state.average = _calculateAverage(state);
     });
 
     if (state.score == 0) {
-      _endLeg();
+      _showLegCloseDialog(value);
       return;
     }
 
@@ -212,11 +220,15 @@ class _GamePage501State extends State<GamePage501> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Ошибка ввода'),
         content: Text(message),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('OK'),
           ),
         ],
@@ -228,6 +240,7 @@ class _GamePage501State extends State<GamePage501> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Bust!'),
         content: Text(message),
         actions: [
@@ -235,6 +248,9 @@ class _GamePage501State extends State<GamePage501> {
             onPressed: () {
               Navigator.of(ctx).pop();
             },
+            style: TextButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('Отмена'),
           ),
           FilledButton(
@@ -245,9 +261,14 @@ class _GamePage501State extends State<GamePage501> {
                 state.legHistory.add(0);
                 state.lastApproach = 0;
                 state.dartsInLeg += 3;
+                state.totalDarts += 3;
+                state.average = _calculateAverage(state);
               });
               _nextPlayer();
             },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('OK'),
           ),
         ],
@@ -255,7 +276,62 @@ class _GamePage501State extends State<GamePage501> {
     );
   }
 
-  void _endLeg() {
+  void _showLegCloseDialog(int value) {
+    final isEven = value % 2 == 0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Закрытие лега'),
+        content: const Text('Сколько брошено дротиков?'),
+        actions: [
+          if (isEven)
+            FilledButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _finishLegWithDarts(1);
+              },
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+              child: const Text('1'),
+            ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _finishLegWithDarts(2);
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('2'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _finishLegWithDarts(3);
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('3'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _finishLegWithDarts(int dartsUsed) {
+    final state = _players[_currentPlayerIndex];
+    // Корректируем totalDarts: было +3 в _submitScore, откатываем и ставим правильное
+    state.totalDarts -= 3;
+    state.totalDarts += dartsUsed;
+    state.average = _calculateAverage(state);
+    _endLeg(dartsUsed: dartsUsed);
+  }
+
+  void _endLeg({int dartsUsed = 3}) {
     final state = _players[_currentPlayerIndex];
     state.legsWon++;
 
@@ -285,16 +361,17 @@ class _GamePage501State extends State<GamePage501> {
       }
     });
 
-    _showLegWonDialog(legScores);
+    _showLegWonDialog(legScores, dartsUsed: dartsUsed);
   }
 
-  void _showLegWonDialog(String legScores) {
+  void _showLegWonDialog(String legScores, {int dartsUsed = 3}) {
     final winner = widget.settings.players[_currentPlayerIndex].name;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text('$winner выиграл лег!'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: Text('$winner закрыл лег за $dartsUsed дротика!'),
         content: Text('Счёт: $legScores'),
         actions: [
           FilledButton(
@@ -302,6 +379,9 @@ class _GamePage501State extends State<GamePage501> {
               Navigator.of(ctx).pop();
               _nextPlayer();
             },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('OK'),
           ),
         ],
@@ -315,6 +395,7 @@ class _GamePage501State extends State<GamePage501> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: Text('🏆 $winner выиграл матч!'),
         content: Text('Счёт по легам: $legScores\nСетов выиграно: $setsWon'),
         actions: [
@@ -323,6 +404,9 @@ class _GamePage501State extends State<GamePage501> {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
             },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('Выйти'),
           ),
         ],
@@ -349,9 +433,8 @@ class _GamePage501State extends State<GamePage501> {
   }
 
   double _calculateAverage(_PlayerGameState state) {
-    if (state.legHistory.isEmpty) return 0;
-    final total = state.legHistory.fold<int>(0, (a, b) => a + b);
-    return total / state.legHistory.length;
+    if (state.totalDarts == 0) return 0;
+    return (state.totalScore / state.totalDarts) * 3;
   }
 
   // ===================================================================
@@ -363,10 +446,13 @@ class _GamePage501State extends State<GamePage501> {
     final entry = _undoStack.removeLast();
     final state = _players[entry.playerIndex];
     setState(() {
+      _currentPlayerIndex = entry.playerIndex;
       state.score = entry.previousScore;
       state.legHistory = entry.previousLegHistory;
       state.dartsInLeg = entry.previousDartsInLeg;
       state.lastApproach = entry.previousLastApproach;
+      state.totalScore = entry.previousTotalScore;
+      state.totalDarts = entry.previousTotalDarts;
       state.average = _calculateAverage(state);
     });
   }
@@ -695,6 +781,8 @@ class _UndoEntry {
   final List<int> previousLegHistory;
   final int previousDartsInLeg;
   final int? previousLastApproach;
+  final int previousTotalScore;
+  final int previousTotalDarts;
 
   _UndoEntry({
     required this.playerIndex,
@@ -702,5 +790,7 @@ class _UndoEntry {
     required this.previousLegHistory,
     required this.previousDartsInLeg,
     required this.previousLastApproach,
+    required this.previousTotalScore,
+    required this.previousTotalDarts,
   });
 }

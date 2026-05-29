@@ -146,34 +146,42 @@ class _CricketSetupPageState extends State<CricketSetupPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButtonFormField<int>(
-              initialValue: _settings.sets,
-              decoration: const InputDecoration(labelText: 'Сеты (1-6)'),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(sets: v);
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              initialValue: _settings.legs,
-              decoration: const InputDecoration(labelText: 'Леги (1-6)'),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(legs: v);
-                  });
-                }
-              },
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _settings.sets,
+                    decoration: const InputDecoration(labelText: 'Сеты (1-6)'),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(sets: v);
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _settings.legs,
+                    decoration: const InputDecoration(labelText: 'Леги (1-6)'),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(legs: v);
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -212,7 +220,9 @@ class _CricketSetupPageState extends State<CricketSetupPage> {
               },
             ),
             const SizedBox(height: 30),
-            Center(
+            SizedBox(
+              width: double.infinity,
+              height: 48,
               child: FilledButton.icon(
                 onPressed: () {
                   // TODO: переход на страницу Cricket
@@ -222,7 +232,12 @@ class _CricketSetupPageState extends State<CricketSetupPage> {
                   Navigator.of(context).pop();
                 },
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Начать игру'),
+                label: const Text('Начать игру', style: TextStyle(fontSize: 16)),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),

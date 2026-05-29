@@ -167,7 +167,11 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
     );
   }
 
@@ -176,11 +180,15 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Лег выигран!'),
         content: Text('${_room.players[winnerIndex].name} выиграл лег'),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('Продолжить'),
           ),
         ],
@@ -193,6 +201,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Матч завершён!'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -208,6 +217,9 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
             },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
             child: const Text('Выйти'),
           ),
         ],
@@ -410,14 +422,17 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       players: _room.players.asMap().entries.map((entry) {
         final i = entry.key;
         final p = entry.value;
+        final darts = _room.dartsInLeg[i];
+        final score = _room.scores[i];
         return PlayerBoardInfo(
           name: p.name,
-          score: _room.scores[i],
+          score: score,
           legsWon: _room.legsWon[i],
-          average: _room.dartsInLeg[i] > 0
-              ? (_room.scores[i] / _room.dartsInLeg[i]) * 3
+          average: darts > 0
+              ? ((501 - score) / darts) * 3
               : null,
           lastApproach: _room.lastApproach[i],
+          dartsInLeg: darts,
           isActive: _room.currentPlayerIndex == i,
         );
       }).toList(),

@@ -317,23 +317,32 @@ class _LobbyPageState extends State<LobbyPage> {
                 children: [
                   Expanded(
                     child: SizedBox(
-                      height: 52,
+                      height: 48,
                       child: OutlinedButton.icon(
                         onPressed: _showJoinDialog,
                         icon: const Icon(Icons.vpn_key),
                         label: const Text('Войти по коду'),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
                     child: SizedBox(
-                      height: 52,
+                      height: 48,
                       child: FilledButton.icon(
                         onPressed: _createRoom,
                         icon: const Icon(Icons.add_circle_outline),
                         label: const Text('Создать игру'),
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
                       ),
                     ),
                   ),

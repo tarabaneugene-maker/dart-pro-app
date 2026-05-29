@@ -163,81 +163,93 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            DropdownButtonFormField<int>(
-              value: _sets,
-
-              decoration: const InputDecoration(
-                labelText: 'Сеты (1-6)',
-                border: OutlineInputBorder(),
-              ),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _sets = v);
-              },
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<int>(
-              value: _legs,
-
-              decoration: const InputDecoration(
-                labelText: 'Леги (1-6)',
-                border: OutlineInputBorder(),
-              ),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _legs = v);
-              },
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              value: _startType,
-
-              decoration: const InputDecoration(
-                labelText: 'Начало',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'straightIn',
-                  child: Text('Straight In'),
+            // Сеты и Леги в один ряд
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _sets,
+                    decoration: const InputDecoration(
+                      labelText: 'Сеты (1-6)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _sets = v);
+                    },
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: 'doubleIn',
-                  child: Text('Double In'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _legs,
+                    decoration: const InputDecoration(
+                      labelText: 'Леги (1-6)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _legs = v);
+                    },
+                  ),
                 ),
               ],
-              onChanged: (v) {
-                if (v != null) setState(() => _startType = v);
-              },
             ),
             const SizedBox(height: 16),
 
-            DropdownButtonFormField<String>(
-              value: _finishType,
-
-              decoration: const InputDecoration(
-                labelText: 'Финиш',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'doubleOut',
-                  child: Text('Double Out'),
+            // Начало и Финиш в один ряд
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _startType,
+                    decoration: const InputDecoration(
+                      labelText: 'Начало',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'straightIn',
+                        child: Text('Straight In'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'doubleIn',
+                        child: Text('Double In'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => _startType = v);
+                    },
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: 'straightOut',
-                  child: Text('Straight Out'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _finishType,
+                    decoration: const InputDecoration(
+                      labelText: 'Финиш',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'doubleOut',
+                        child: Text('Double Out'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'straightOut',
+                        child: Text('Straight Out'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => _finishType = v);
+                    },
+                  ),
                 ),
               ],
-              onChanged: (v) {
-                if (v != null) setState(() => _finishType = v);
-              },
             ),
             const SizedBox(height: 16),
 
@@ -277,7 +289,8 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             if (_error != null) const SizedBox(height: 16),
 
             SizedBox(
-              height: 52,
+              width: double.infinity,
+              height: 48,
               child: FilledButton.icon(
                 onPressed: _creating ? null : _createRoom,
                 icon: _creating
@@ -291,6 +304,11 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
                 label: Text(
                   _creating ? 'Создаю...' : 'Создать игру',
                   style: const TextStyle(fontSize: 16),
+                ),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),

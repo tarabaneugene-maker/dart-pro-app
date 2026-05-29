@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/backend_service.dart';
 import '../server_url.dart';
@@ -239,6 +238,11 @@ class _LoginPageState extends State<LoginPage> {
                 height: 48,
                 child: FilledButton(
                   onPressed: (_loading || _connecting) ? null : _login,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   child: _loading || _connecting
                       ? const SizedBox(
                           width: 24,

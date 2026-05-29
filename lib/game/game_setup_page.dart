@@ -226,79 +226,96 @@ class _GameSetupPageState extends State<GameSetupPage> {
                 }
               },
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              initialValue: _settings.sets,
-              decoration: const InputDecoration(labelText: 'Сеты (1-6)'),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(sets: value);
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              initialValue: _settings.legs,
-              decoration: const InputDecoration(labelText: 'Леги (1-6)'),
-              items: List.generate(6, (i) => i + 1)
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(legs: value);
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<StartType>(
-              initialValue: _settings.startType,
-              decoration: const InputDecoration(labelText: 'Начало'),
-              items: const [
-                DropdownMenuItem(
-                  value: StartType.straightIn,
-                  child: Text('Straight In'),
+            // Сеты и Леги в один ряд
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _settings.sets,
+                    decoration: const InputDecoration(labelText: 'Сеты (1-6)'),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(sets: value);
+                        });
+                      }
+                    },
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: StartType.doubleIn,
-                  child: Text('Double In'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _settings.legs,
+                    decoration: const InputDecoration(labelText: 'Леги (1-6)'),
+                    items: List.generate(6, (i) => i + 1)
+                        .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(legs: value);
+                        });
+                      }
+                    },
+                  ),
                 ),
               ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(startType: value);
-                  });
-                }
-              },
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<FinishType>(
-              initialValue: _settings.finishType,
-              decoration: const InputDecoration(labelText: 'Финиш'),
-              items: const [
-                DropdownMenuItem(
-                  value: FinishType.doubleOut,
-                  child: Text('Double Out'),
+            // Начало и Финиш в один ряд
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<StartType>(
+                    initialValue: _settings.startType,
+                    decoration: const InputDecoration(labelText: 'Начало'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: StartType.straightIn,
+                        child: Text('Straight In'),
+                      ),
+                      DropdownMenuItem(
+                        value: StartType.doubleIn,
+                        child: Text('Double In'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(startType: value);
+                        });
+                      }
+                    },
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: FinishType.straightOut,
-                  child: Text('Straight Out'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<FinishType>(
+                    initialValue: _settings.finishType,
+                    decoration: const InputDecoration(labelText: 'Финиш'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: FinishType.doubleOut,
+                        child: Text('Double Out'),
+                      ),
+                      DropdownMenuItem(
+                        value: FinishType.straightOut,
+                        child: Text('Straight Out'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _settings = _settings.copyWith(finishType: value);
+                        });
+                      }
+                    },
+                  ),
                 ),
               ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _settings = _settings.copyWith(finishType: value);
-                  });
-                }
-              },
             ),
             const SizedBox(height: 24),
             Row(
@@ -339,7 +356,9 @@ class _GameSetupPageState extends State<GameSetupPage> {
               },
             ),
             const SizedBox(height: 30),
-            Center(
+            SizedBox(
+              width: double.infinity,
+              height: 48,
               child: FilledButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
@@ -349,7 +368,12 @@ class _GameSetupPageState extends State<GameSetupPage> {
                   );
                 },
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Начать игру'),
+                label: const Text('Начать игру', style: TextStyle(fontSize: 16)),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),
