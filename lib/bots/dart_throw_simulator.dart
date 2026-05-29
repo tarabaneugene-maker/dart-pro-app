@@ -57,10 +57,11 @@ class DartThrowSimulator {
     if (sectorAngle < 0) sectorAngle += 2 * pi;
     int sectorIndex = (sectorAngle / (pi / 10)).floor();
 
-    // Порядок секторов по часовой от 20 (начиная с 12 часов)
+    // Порядок секторов по часовой от 6 (начиная с 3 часов, угол ~0)
+    // Сектор 20 (12 часов) = atan2(-103, 0) = -π/2 → sectorIndex = 15
     const List<int> sectorMap = [
-      20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
-      3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
+      6, 10, 15, 2, 17, 3, 19, 7, 16, 8,
+      11, 14, 9, 12, 5, 20, 1, 18, 4, 13,
     ];
     int segment = sectorMap[sectorIndex % 20];
 
