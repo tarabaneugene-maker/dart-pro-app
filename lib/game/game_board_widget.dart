@@ -14,6 +14,7 @@ class PlayerBoardInfo {
   final int? lastApproach;
   final int dartsInLeg;
   final bool isActive;
+  final List<DartEntryDisplay> lastDartResults;
 
   const PlayerBoardInfo({
     required this.name,
@@ -24,6 +25,7 @@ class PlayerBoardInfo {
     this.lastApproach,
     this.dartsInLeg = 0,
     this.isActive = false,
+    this.lastDartResults = const [],
   });
 }
 
@@ -195,6 +197,25 @@ class GameScoreBoard extends StatelessWidget {
               ),
             ),
           ),
+          // Результаты дротиков последнего подхода (столбец)
+          if (player.lastDartResults.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final d in player.lastDartResults)
+                    Text(
+                      d.isEmpty ? '' : d.display,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           // Нижняя строка: последний подход слева, дротики справа
           Row(
             children: [

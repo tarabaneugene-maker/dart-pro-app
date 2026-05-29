@@ -18,6 +18,7 @@ class _PlayerGameState {
   double? average;
   int totalScore; // всего набрано очков за матч
   int totalDarts; // всего брошено дротиков за матч
+  List<DartEntryDisplay> lastApproachDarts; // результаты дротиков последнего подхода
 
   _PlayerGameState({required int startScore})
       : score = startScore,
@@ -28,7 +29,8 @@ class _PlayerGameState {
         lastApproach = null,
         average = null,
         totalScore = 0,
-        totalDarts = 0;
+        totalDarts = 0,
+        lastApproachDarts = [];
 }
 
 /// Страница игры 501/301
@@ -146,6 +148,26 @@ class _GamePage501State extends State<GamePage501> {
     });
   }
 
+  /// Преобразовать ThrowResult в DartEntryDisplay
+  DartEntryDisplay _throwResultToDisplay(ThrowResult result) {
+    if (result.score == 0) {
+      return const DartEntryDisplay(isSet: true, number: 0, modifier: 'S');
+    }
+    String modifier;
+    if (result.multiplier == 2) {
+      modifier = 'D';
+    } else if (result.multiplier == 3) {
+      modifier = 'T';
+    } else {
+      modifier = 'S';
+    }
+    return DartEntryDisplay(
+      modifier: modifier,
+      number: result.segment,
+      isSet: true,
+    );
+  }
+
   /// Применить один дротик бота (каждый дротик = +1 к счётчикам)
   void _submitBotDart(ThrowResult result) {
     final state = _players[_currentPlayerIndex];
@@ -161,6 +183,7 @@ class _GamePage501State extends State<GamePage501> {
       previousLastApproach: state.lastApproach,
       previousTotalScore: state.totalScore,
       previousTotalDarts: state.totalDarts,
+      previousLastApproachDarts: List.from(state.lastApproachDarts),
     ));
 
     // Проверка bust: сумма > остатка
@@ -172,6 +195,7 @@ class _GamePage501State extends State<GamePage501> {
         state.dartsInLeg += 1;
         state.totalDarts += 1;
         state.average = _calculateAverage(state);
+        state.lastApproachDarts.add(_throwResultToDisplay(result));
       });
       return;
     }
@@ -185,6 +209,7 @@ class _GamePage501State extends State<GamePage501> {
         state.dartsInLeg += 1;
         state.totalDarts += 1;
         state.average = _calculateAverage(state);
+        state.lastApproachDarts.add(_throwResultToDisplay(result));
       });
       return;
     }
@@ -197,12 +222,11 @@ class _GamePage501State extends State<GamePage501> {
       state.totalScore += value;
       state.totalDarts += 1;
       state.average = _calculateAverage(state);
+      state.lastApproachDarts.add(_throwResultToDisplay(result));
     });
 
     if (state.score == 0) {
       // Бот закрыл лег — считаем сколько дротиков использовано в этом подходе
-      // Смотрим сколько раз вызывался _submitBotDart в этом подходе
-      // (считаем по длине legHistory минус предыдущие подходы)
       final dartsUsed = state.dartsInLeg;
       _finishLegWithDarts(dartsUsed);
     }
@@ -269,10 +293,13 @@ class _GamePage501State extends State<GamePage501> {
       state.totalScore += value;
       state.totalDarts += 3;
       state.average = _calculateAverage(state);
+      // В режиме суммы — сбрасываем per-dart результаты
+      state.lastApproachDarts = [];
     });
 
     if (state.score == 0) {
-      _showLegCloseDialog(value);
+      // Используем общее кол-во дротиков в леге
+      _finishLegWithDarts(state.dartsInLeg);
       return;
     }
 
@@ -333,52 +360,6 @@ class _GamePage501State extends State<GamePage501> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
             child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLegCloseDialog(int value) {
-    final isEven = value % 2 == 0;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('Закрытие лега'),
-        content: const Text('Сколько брошено дротиков?'),
-        actions: [
-          if (isEven)
-            FilledButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                _finishLegWithDarts(1);
-              },
-              style: FilledButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              ),
-              child: const Text('1'),
-            ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _finishLegWithDarts(2);
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: const Text('2'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _finishLegWithDarts(3);
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: const Text('3'),
           ),
         ],
       ),
@@ -496,6 +477,8 @@ class _GamePage501State extends State<GamePage501> {
     }
     _currentDartIndex = 0;
     _selectedModifier = 'S';
+    // Сбрасываем per-dart результаты при смене игрока
+    _players[_currentPlayerIndex].lastApproachDarts = [];
   }
 
   double _calculateAverage(_PlayerGameState state) {
@@ -520,6 +503,7 @@ class _GamePage501State extends State<GamePage501> {
       state.totalScore = entry.previousTotalScore;
       state.totalDarts = entry.previousTotalDarts;
       state.average = _calculateAverage(state);
+      state.lastApproachDarts = List.from(entry.previousLastApproachDarts);
     });
   }
 
@@ -620,6 +604,11 @@ class _GamePage501State extends State<GamePage501> {
     if (_dartEntries.every((e) => e.isEmpty)) return;
 
     final total = _dartEntries.fold<int>(0, (sum, e) => sum + e.score);
+
+    // Сохраняем результаты дротиков в состояние игрока
+    final state = _players[_currentPlayerIndex];
+    state.lastApproachDarts = List.from(_dartEntries);
+
     _submitScore(total, isBot: false);
 
     setState(() {
@@ -778,6 +767,7 @@ class _GamePage501State extends State<GamePage501> {
           lastApproach: state.lastApproach,
           dartsInLeg: state.dartsInLeg,
           isActive: _currentPlayerIndex == i,
+          lastDartResults: state.lastApproachDarts,
         );
       }).toList(),
       currentPlayerIndex: _currentPlayerIndex,
@@ -843,6 +833,7 @@ class _UndoEntry {
   final int? previousLastApproach;
   final int previousTotalScore;
   final int previousTotalDarts;
+  final List<DartEntryDisplay> previousLastApproachDarts;
 
   _UndoEntry({
     required this.playerIndex,
@@ -852,5 +843,6 @@ class _UndoEntry {
     required this.previousLastApproach,
     required this.previousTotalScore,
     required this.previousTotalDarts,
+    this.previousLastApproachDarts = const [],
   });
 }
