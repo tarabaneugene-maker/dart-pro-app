@@ -1,110 +1,70 @@
-# 🎯 Dart Pro App — Roadmap
+# 🎯 Dart Pro App
 
-> Flutter Web + Dart сервер для игры в дартс (501, Cricket, тренировки).
-> Production: **https://dart-pro-app.ru**
+Flutter Web + Dart сервер. Дартс: 501, Cricket, тренировки, онлайн.
 
-**Стек:** Flutter Web (клиент), Dart (сервер), SQLite (БД), WebSocket (реалтайм), Docker + Caddy (деплой).
+**Стек:** Flutter Web → Dart сервер → SQLite → WebSocket → Docker + Caddy  
+**VPS:** `192.144.13.217` (nip.io), health: `GET /health`
 
 ---
 
-## 🏗 Архитектура
+## 📁 Структура
 
 ```
-lib/                          # Flutter-клиент
-├── main.dart                 # Точка входа, главное меню (плитки)
-├── models/                   # Модели данных (enums, PlayerConfig, GameSettings, CricketSettings)
-├── data/                     # Статические данные (таблица чекаутов)
-├── bots/                     # Симуляция бросков, 5 уровней сложности
-├── game/                     # Экраны: меню, настройка 501/Cricket, игровой процесс 501
-├── online/                   # Онлайн: auth, профиль, лобби, комнаты, WebSocket
-├── training/                 # Тренировочные режимы
-├── services/                 # BotService
-└── widgets/                  # Общие виджеты (табло, панель ввода, чекауты)
+lib/
+├── main.dart               # Точка входа, меню
+├── models/                  # game_enums, PlayerConfig, GameSettings, CricketSettings
+├── data/checkouts.dart      # Таблица чекаутов (2–170)
+├── game/                    # 501: меню, настройка, доска, ввод; Cricket: только настройка
+├── online/                  # Auth (JWT), лобби, комнаты, WebSocket, онлайн-матч 501
+├── bots/                    # 5 уровней, симуляция бросков, Double Out/In
+├── training/                # Сектор, Around the Clock (2 варианта)
+├── services/bot_service.dart
+└── widgets/                 # Табло, панель ввода, CheckOutsPage
 
-server/                       # Dart-сервер
-└── lib/
-    ├── main.dart             # HTTP + WebSocket
-    ├── auth/                 # JWT-аутентификация
-    ├── db/                   # SQLite
-    ├── game/                 # Комнаты, синхронизация
-    └── models/               # Модели сервера
+server/lib/
+├── main.dart                # HTTP + WebSocket на одном порту
+├── auth/                    # JWT, bcrypt, rate limit
+├── db/                      # SQLite (WAL)
+├── game/                    # Комнаты, синхронизация 501
+└── models/                  # User, Room, MatchResult
 ```
 
----
+## ✅ Готово
 
-## ✅ Реализовано
+- **501**: сумма/per-dart, undo, bust, double out, сеты/леги, average, checkout-подсказки
+- **Боты**: 5 уровней, Double Out/In, свои checkout-таблицы
+- **Онлайн**: регистрация, JWT, WebSocket (heartbeat, reconnect, re-auth), лобби, комнаты, матч 501
+- **Тренировки**: Сектор (счётчик попаданий), Around the Clock (выбор Single/Double/Triple), Classic 1→20→Bull
+- **Сервер**: SQLite WAL, rate limit (30/10s), graceful shutdown, health check, Docker multi-stage
+- **Деплой**: VPS + Docker + Caddy (HTTPS авто), скрипт setup.sh
 
-### Локальная игра 501
-- Два режима ввода: сумма подхода / каждый бросок
-- Undo, bust-диалог, double out, сеты/леги
-- Среднее (average) = (totalScore / totalDarts) × 3
-- Диалог закрытия лега с выбором количества дротиков (1/2/3)
-- Подсветка активного игрока (зелёный), счётчик дротиков
-- Checkout-таблица (60–170) — full-screen, открывается по тапу на баннере
+## ⚠️ Частично / Требует доработки
 
-### Боты
-- Симуляция бросков, 5 уровней сложности
-- Стратегия Double Out/In, таблица checkout'ов
-
-### Онлайн
-- Регистрация/логин, JWT, bcrypt, «запомнить меня»
-- WebSocket: heartbeat, reconnect с re-auth, очередь сообщений
-- Лобби: создание комнат, вступление по коду, запросы на вступление
-- Онлайн-матч 501: синхронизация ходов, обработка дисконнекта
-
-### Сервер
-- SQLite, graceful shutdown, health check (`/health`)
-- Rate limiting, Docker multi-stage
-
-### Деплой
-- VPS (Ubuntu + Docker + Caddy + HTTPS)
-- Скрипт `server/setup.sh` для быстрой настройки
-
----
-
-## 🔧 В разработке
-
-- **Cricket** — игровая страница, доска, подсчёт
-- **Тренировки** — доработка режимов
-
----
-
-## 📋 Планируется
-
-- Звуки и анимации (бросок, попадание, победный лег)
-- Unit-тесты (боты, симулятор, логика подсчёта)
-- Локализация (русский/английский)
-- ELO-рейтинг / система подбора игроков
-- UI-улучшения: landscape lock, компактный layout
-
----
-
-## 🐛 Известные проблемы
-
-- `pendingPlayers` не очищается при выходе из комнаты (сервер)
-- Turn timeout / Grace period / State reconciliation — не реализованы
-
----
+| Что | Статус |
+|-----|--------|
+| **Cricket** | Настройка есть, игровой процесс — заглушка |
+| **Training: Around/Classic** | Интерфейс есть, process-логика не дописана (TODO) |
+| **Онлайн: turn timeout** | Нет — игрок может висеть бесконечно |
+| **Онлайн: pendingPlayers** | Не очищается при выходе из комнаты |
+| **Онлайн: state reconciliation** | Нет — reconnect не синхронизирует состояние |
+| **Статистика / Настройки** | StubPage |
+| `lib/data/checkouts.dart` | Только 60–170, нет 41–59 |
 
 ## 🚀 Деплой
 
-**Production VPS:** `192.144.13.217` (Ubuntu + Docker + Caddy)
+```bash
+# Быстрый запуск с нуля
+curl -fsSL https://raw.githubusercontent.com/tarabaneugene-maker/dart-pro-app/main/server/setup.sh | sudo bash
 
-| Действие | Команда |
-|----------|---------|
-| Быстрый запуск | `curl -fsSL https://raw.githubusercontent.com/tarabaneugene-maker/dart-pro-app/main/server/setup.sh \| sudo bash` |
-| Обновление | `update_vps.ps1` (Windows) или `git pull && docker build/run` (Linux) |
-| Проверка | `curl https://dart-pro-app.ru/health` |
-| Логи | `docker logs -f dart-pro-server` |
+# Обновление
+cd /opt/dart-pro-app && git pull && docker build -t dart-pro-server . && docker stop dart-pro-server && docker rm dart-pro-server && docker run -d --name dart-pro-server --restart unless-stopped -p 9090:9090 -v /opt/dart-pro-data:/app/data -e PORT=9090 dart-pro-server
 
-### Переменные окружения сервера
+# Проверка
+curl http://192.144.13.217:9090/health
+```
 
-| Переменная | Описание | По умолчанию |
-|-----------|----------|-------------|
-| `PORT` | Порт для HTTP/WS | `8080` |
-| `DB_PATH` | Путь к SQLite | `/app/data/dart_pro.db` |
-| `JWT_SECRET` | Секрет для JWT | (генерируется случайно) |
+Переменные: `PORT` (9090), `DB_PATH` (/app/data/dart_pro.db), `JWT_SECRET` (генерируется).
 
 ---
 
-*Последнее обновление: 29.05.2026*
+*30.05.2026*
