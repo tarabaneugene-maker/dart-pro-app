@@ -705,72 +705,68 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Настройки игры',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Режим ввода',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
                 children: [
-                  Text(
-                    'Настройки игры',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: _InputModeOption(
+                      icon: Icons.numbers,
+                      label: 'Сумма подхода',
+                      isSelected: _isSumMode,
+                      onTap: () {
+                        setState(() { _isSumMode = true; });
+                        Navigator.of(ctx).pop();
+                      },
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Режим ввода',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _InputModeOption(
-                          icon: Icons.numbers,
-                          label: 'Сумма подхода',
-                          isSelected: _isSumMode,
-                          onTap: () {
-                            setState(() { _isSumMode = true; });
-                            setSheetState(() {});
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _InputModeOption(
-                          icon: Icons.sports_kabaddi,
-                          label: 'Каждый бросок',
-                          isSelected: !_isSumMode,
-                          onTap: () {
-                            setState(() { _isSumMode = false; });
-                            setSheetState(() {});
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: const Text('Закрыть'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _InputModeOption(
+                      icon: Icons.sports_kabaddi,
+                      label: 'Каждый бросок',
+                      isSelected: !_isSumMode,
+                      onTap: () {
+                        setState(() { _isSumMode = false; });
+                        Navigator.of(ctx).pop();
+                      },
                     ),
                   ),
                 ],
               ),
-            );
-          },
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  child: const Text('Закрыть'),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -823,12 +819,12 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
+          const SizedBox(width: 12),
           // Кнопка настроек
           IconButton(
-            icon: const Icon(Icons.settings, size: 20),
+            icon: const Icon(Icons.settings, size: 28),
             onPressed: _showSettingsSheet,
             tooltip: 'Настройки',
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
