@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
 import '../game/game_board_widget.dart';
 import '../utils/dart_utils.dart';
+import 'lobby_page.dart';
 
 /// Онлайн-игра 501
 ///
@@ -55,6 +56,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   Timer? _reconnectTimer;
   int _reconnectSecondsLeft = 120;
   bool _showReconnectDialog = false;
+  BuildContext? _reconnectDialogContext;
 
   @override
   void initState() {
@@ -208,7 +210,14 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           setState(() {
             _showReconnectDialog = false;
           });
+          // Закрываем диалог, если он открыт
+          if (_reconnectDialogContext != null) {
+            Navigator.of(_reconnectDialogContext!).pop();
+            _reconnectDialogContext = null;
+          }
           _showSnackBar('Соперник вернулся');
+          // Сбрасываем таймер хода
+          _startTurnTimer();
         }
         break;
 
@@ -299,12 +308,12 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pop();
+              _goToLobby();
             },
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
-            child: const Text('Выйти'),
+            child: const Text('В лобби'),
           ),
         ],
       ),
@@ -328,15 +337,28 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pop();
+              _goToLobby();
             },
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
-            child: const Text('Выйти'),
+            child: const Text('В лобби'),
           ),
         ],
       ),
+    );
+  }
+
+  void _goToLobby() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LobbyPage(
+          backend: widget.backend,
+          displayName: widget.playerName,
+        ),
+      ),
+      (route) => false,
     );
   }
 
@@ -545,6 +567,8 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
+        // Сохраняем контекст диалога для закрытия при возврате соперника
+        _reconnectDialogContext = ctx;
         return StatefulBuilder(
           builder: (context, setDialogState) {
             // Обновляем диалог каждую секунду
@@ -584,6 +608,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         );
       },
     ).then((_) {
+      _reconnectDialogContext = null;
       // Диалог закрыт — если игра ещё не завершена, показываем результат
       if (mounted && _room.status != 'finished') {
         _showOpponentForfeitDialog(isWinner: true, reason: 'disconnect_timeout');
