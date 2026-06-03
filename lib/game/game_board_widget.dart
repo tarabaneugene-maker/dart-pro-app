@@ -206,40 +206,42 @@ class GameScoreBoard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          // Счёт (крупно) + результаты дротиков последнего подхода
+          // Счёт (крупно, по центру колонки) + результаты бросков (слева внизу, поверх)
           Expanded(
-            child: Column(
+            child: Stack(
               children: [
-                // Счёт — занимает всё доступное место минус dartResults
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '${player.score}',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
+                // Счёт — идеально по центру всей колонки игрока
+                Center(
+                  child: Text(
+                    '${player.score}',
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
-                // Результаты дротиков последнего подхода (снизу, компактно)
+                // Результаты дротиков последнего подхода — слева внизу, поверх счёта
                 if (player.lastDartResults.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final d in player.lastDartResults)
-                          Text(
-                            d.isEmpty ? '' : d.display,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              height: 1.2,
+                  Positioned(
+                    left: 0,
+                    bottom: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final d in player.lastDartResults)
+                            Text(
+                              d.isEmpty ? '' : d.display,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.2,
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
               ],
