@@ -5,6 +5,10 @@ import '../data/checkouts.dart';
 class CheckOutsPage extends StatelessWidget {
   const CheckOutsPage({super.key});
 
+  /// Чекауты >= 60 (без one-dart finishes)
+  List<CheckoutEntry> get _filteredCheckouts =>
+      allCheckouts.where((e) => e.score >= 60).toList();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -74,16 +78,16 @@ class CheckOutsPage extends StatelessWidget {
               ],
             ),
           ),
-          // Список чекаутов
+          // Список чекаутов (показываем только >= 60)
           Expanded(
             child: ListView.separated(
-              itemCount: allCheckouts.length,
-              separatorBuilder: (_, __) => Divider(
+              itemCount: _filteredCheckouts.length,
+              separatorBuilder: (_, _) => Divider(
                 height: 1,
                 color: theme.colorScheme.outlineVariant,
               ),
               itemBuilder: (context, index) {
-                final entry = allCheckouts[index];
+                final entry = _filteredCheckouts[index];
                 final isThreeDart = entry.third != null;
                 return Container(
                   padding: const EdgeInsets.symmetric(
@@ -124,8 +128,12 @@ class CheckOutsPage extends StatelessWidget {
                       // 2nd
                       Expanded(
                         child: Text(
-                          entry.second,
-                          style: theme.textTheme.bodyMedium,
+                          entry.second ?? '-',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: entry.second == null
+                                ? theme.colorScheme.onSurfaceVariant
+                                : null,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ),

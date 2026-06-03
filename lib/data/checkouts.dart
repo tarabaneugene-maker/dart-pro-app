@@ -2,13 +2,13 @@
 class CheckoutEntry {
   final int score;
   final String first;
-  final String second;
+  final String? second; // null для one-dart finishes
   final String? third; // null для two-dart finishes
 
   const CheckoutEntry({
     required this.score,
     required this.first,
-    required this.second,
+    this.second,
     this.third,
   });
 }
@@ -80,6 +80,29 @@ const List<CheckoutEntry> allCheckouts = [
   CheckoutEntry(score: 102, first: 'T20', second: '10', third: 'D16'),
   CheckoutEntry(score: 101, first: 'T20', second: '1', third: 'D20'),
   CheckoutEntry(score: 99, first: 'T19', second: '10', third: 'D16'),
+  // One Dart Finishes (1-40)
+  CheckoutEntry(score: 40, first: 'D20'),
+  CheckoutEntry(score: 38, first: 'D19'),
+  CheckoutEntry(score: 36, first: 'D18'),
+  CheckoutEntry(score: 34, first: 'D17'),
+  CheckoutEntry(score: 32, first: 'D16'),
+  CheckoutEntry(score: 30, first: 'D15'),
+  CheckoutEntry(score: 28, first: 'D14'),
+  CheckoutEntry(score: 26, first: 'D13'),
+  CheckoutEntry(score: 24, first: 'D12'),
+  CheckoutEntry(score: 22, first: 'D11'),
+  CheckoutEntry(score: 20, first: 'D10'),
+  CheckoutEntry(score: 18, first: 'D9'),
+  CheckoutEntry(score: 16, first: 'D8'),
+  CheckoutEntry(score: 14, first: 'D7'),
+  CheckoutEntry(score: 12, first: 'D6'),
+  CheckoutEntry(score: 10, first: 'D5'),
+  CheckoutEntry(score: 8, first: 'D4'),
+  CheckoutEntry(score: 6, first: 'D3'),
+  CheckoutEntry(score: 4, first: 'D2'),
+  CheckoutEntry(score: 2, first: 'D1'),
+  CheckoutEntry(score: 50, first: 'Bull'),
+  CheckoutEntry(score: 25, first: '25'),
   // Two Dart Finishes
   CheckoutEntry(score: 100, first: 'T20', second: 'D20'),
   CheckoutEntry(score: 98, first: 'T20', second: 'D19'),
@@ -121,6 +144,25 @@ const List<CheckoutEntry> allCheckouts = [
   CheckoutEntry(score: 62, first: 'T10', second: 'D16'),
   CheckoutEntry(score: 61, first: 'T15', second: 'D8'),
   CheckoutEntry(score: 60, first: '20', second: 'D20'),
+  // Two Dart Finishes (59-41)
+  CheckoutEntry(score: 59, first: '19', second: 'D20'),
+  CheckoutEntry(score: 58, first: '18', second: 'D20'),
+  CheckoutEntry(score: 57, first: '17', second: 'D20'),
+  CheckoutEntry(score: 56, first: '16', second: 'D20'),
+  CheckoutEntry(score: 55, first: '15', second: 'D20'),
+  CheckoutEntry(score: 54, first: '14', second: 'D20'),
+  CheckoutEntry(score: 53, first: '13', second: 'D20'),
+  CheckoutEntry(score: 52, first: '12', second: 'D20'),
+  CheckoutEntry(score: 51, first: '11', second: 'D20'),
+  CheckoutEntry(score: 49, first: '9', second: 'D20'),
+  CheckoutEntry(score: 48, first: '8', second: 'D20'),
+  CheckoutEntry(score: 47, first: '7', second: 'D20'),
+  CheckoutEntry(score: 46, first: '6', second: 'D20'),
+  CheckoutEntry(score: 45, first: '5', second: 'D20'),
+  CheckoutEntry(score: 44, first: '4', second: 'D20'),
+  CheckoutEntry(score: 43, first: '3', second: 'D20'),
+  CheckoutEntry(score: 42, first: '2', second: 'D20'),
+  CheckoutEntry(score: 41, first: '1', second: 'D20'),
 ];
 
 /// Получить чекаут для конкретного счёта (если есть)

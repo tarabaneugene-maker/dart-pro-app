@@ -312,13 +312,9 @@ class _GamePage501State extends State<GamePage501> {
     });
 
     if (state.score == 0) {
-      // Для человека в per-dart режиме — спрашиваем сколько дротиков в последнем подходе
-      if (!_isCurrentPlayerBot && _currentInputMode == InputMode.oneDart) {
-        _showLegCloseDialog(value);
-      } else {
-        // Для бота или sum-mode — используем общее кол-во дротиков в леге
-        _finishLegWithDarts(state.dartsInLeg);
-      }
+      // Для бота или sum-mode — используем общее кол-во дротиков в леге
+      // Для per-dart режима — _onSubmitDart уже скорректировал dartsInLeg
+      _finishLegWithDarts(state.dartsInLeg);
       return;
     }
 
@@ -379,56 +375,6 @@ class _GamePage501State extends State<GamePage501> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
             child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLegCloseDialog(int value) {
-    final state = _players[_currentPlayerIndex];
-    // Общее кол-во дротиков до последнего подхода
-    final dartsBeforeApproach = state.dartsInLeg - 3;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('Закрытие лега'),
-        content: const Text('Сколько брошено дротиков?'),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              final totalDartsInLeg = dartsBeforeApproach + 1;
-              _finishLegWithDarts(totalDartsInLeg);
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: const Text('1'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              final totalDartsInLeg = dartsBeforeApproach + 2;
-              _finishLegWithDarts(totalDartsInLeg);
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: const Text('2'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              final totalDartsInLeg = dartsBeforeApproach + 3;
-              _finishLegWithDarts(totalDartsInLeg);
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: const Text('3'),
           ),
         ],
       ),
@@ -673,12 +619,30 @@ class _GamePage501State extends State<GamePage501> {
     if (_dartEntries.every((e) => e.isEmpty)) return;
 
     final total = _dartEntries.fold<int>(0, (sum, e) => sum + e.score);
+    // Считаем реальное количество непустых дротиков в этом подходе
+    final realDartsCount = _dartEntries.where((e) => e.isSet).length;
 
     // Сохраняем результаты дротиков в состояние игрока
     final state = _players[_currentPlayerIndex];
     state.lastApproachDarts = List.from(_dartEntries);
 
+    // Если закрытие — передаём реальное количество дротиков
+    final wasLegClosed = state.score - total == 0;
+
     _submitScore(total, isBot: false);
+
+    // Если закрыли лег в per-dart режиме — корректируем dartsInLeg
+    if (wasLegClosed && _currentInputMode == InputMode.oneDart) {
+      final stateAfter = _players[_currentPlayerIndex];
+      if (stateAfter.score == 0) {
+        // _submitScore уже добавил +3, откатываем и ставим реальное
+        stateAfter.totalDarts -= 3;
+        stateAfter.totalDarts += realDartsCount;
+        stateAfter.dartsInLeg -= 3;
+        stateAfter.dartsInLeg += realDartsCount;
+        stateAfter.average = _calculateAverage(stateAfter);
+      }
+    }
 
     setState(() {
       for (int i = 0; i < 3; i++) {
