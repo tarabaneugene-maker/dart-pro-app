@@ -57,6 +57,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   int _reconnectSecondsLeft = 120;
   bool _showReconnectDialog = false;
   BuildContext? _reconnectDialogContext;
+  bool _opponentReconnected = false;
 
   @override
   void initState() {
@@ -209,6 +210,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           _reconnectTimer?.cancel();
           setState(() {
             _showReconnectDialog = false;
+            _opponentReconnected = true;
           });
           // Закрываем диалог, если он открыт
           if (_reconnectDialogContext != null) {
@@ -609,6 +611,11 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       },
     ).then((_) {
       _reconnectDialogContext = null;
+      // Диалог закрыт — если соперник вернулся, ничего не показываем
+      if (_opponentReconnected) {
+        _opponentReconnected = false;
+        return;
+      }
       // Диалог закрыт — если игра ещё не завершена, показываем результат
       if (mounted && _room.status != 'finished') {
         _showOpponentForfeitDialog(isWinner: true, reason: 'disconnect_timeout');
