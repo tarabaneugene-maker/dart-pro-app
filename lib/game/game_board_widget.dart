@@ -206,38 +206,45 @@ class GameScoreBoard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          // Счёт (крупно) — обычный цвет, без подсветки
+          // Счёт (крупно) + результаты дротиков последнего подхода
           Expanded(
-            child: Center(
-              child: Text(
-                '${player.score}',
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-          // Результаты дротиков последнего подхода (столбец)
-          if (player.lastDartResults.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final d in player.lastDartResults)
-                    Text(
-                      d.isEmpty ? '' : d.display,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        height: 1.2,
+            child: Column(
+              children: [
+                // Счёт — занимает всё доступное место минус dartResults
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '${player.score}',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
-                ],
-              ),
+                  ),
+                ),
+                // Результаты дротиков последнего подхода (снизу, компактно)
+                if (player.lastDartResults.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final d in player.lastDartResults)
+                          Text(
+                            d.isEmpty ? '' : d.display,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              height: 1.2,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+          ),
           // Нижняя строка: последний подход слева, дротики справа
           Row(
             children: [
