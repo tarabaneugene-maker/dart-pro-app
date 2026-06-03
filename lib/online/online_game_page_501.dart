@@ -474,6 +474,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       _dartEntries[_currentDartIndex] = DartEntryDisplay(
         modifier: modifier,
         number: number,
+        isSet: true,
       );
       if (_currentDartIndex < 2) {
         _currentDartIndex++;
