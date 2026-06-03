@@ -244,7 +244,7 @@ class _GamePage501State extends State<GamePage501> {
     }
   }
 
-  void _submitScore(int value, {required bool isBot}) {
+  void _submitScore(int value, {required bool isBot, bool skipFinish = false}) {
     final state = _players[_currentPlayerIndex];
     final currentScore = state.score;
 
@@ -312,13 +312,16 @@ class _GamePage501State extends State<GamePage501> {
     });
 
     if (state.score == 0) {
+      if (skipFinish) {
+        // В per-dart режиме _onSubmitDart сам вызовет _finishLegWithDarts
+        return;
+      }
       // Для бота или sum-mode — используем общее кол-во дротиков в леге
-      // Для per-dart режима — _onSubmitDart уже скорректировал dartsInLeg
       _finishLegWithDarts(state.dartsInLeg);
       return;
     }
 
-    if (!isBot) _nextPlayer();
+    if (!isBot && !skipFinish) _nextPlayer();
   }
 
   void _showErrorDialog(String message) {
@@ -629,19 +632,22 @@ class _GamePage501State extends State<GamePage501> {
     // Если закрытие — передаём реальное количество дротиков
     final wasLegClosed = state.score - total == 0;
 
-    _submitScore(total, isBot: false);
-
-    // Если закрыли лег в per-dart режиме — корректируем dartsInLeg
     if (wasLegClosed && _currentInputMode == InputMode.oneDart) {
+      // В per-dart режиме: _submitScore не будет вызывать _finishLegWithDarts
+      // (skipFinish), мы сами скорректируем dartsInLeg и вызовем
+      _submitScore(total, isBot: false, skipFinish: true);
       final stateAfter = _players[_currentPlayerIndex];
       if (stateAfter.score == 0) {
-        // _submitScore уже добавил +3, откатываем и ставим реальное
+        // _submitScore добавил +3, откатываем и ставим реальное
         stateAfter.totalDarts -= 3;
         stateAfter.totalDarts += realDartsCount;
         stateAfter.dartsInLeg -= 3;
         stateAfter.dartsInLeg += realDartsCount;
         stateAfter.average = _calculateAverage(stateAfter);
+        _finishLegWithDarts(stateAfter.dartsInLeg);
       }
+    } else {
+      _submitScore(total, isBot: false);
     }
 
     setState(() {
