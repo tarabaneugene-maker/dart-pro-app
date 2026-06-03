@@ -46,6 +46,7 @@ class Room {
   List<int> legsWon = [0, 0];
   List<int> dartsInLeg = [0, 0];
   List<int?> lastApproach = [null, null];
+  DateTime? turnStartTime; // когда начался текущий ход
 
   Room({
     required this.id,
@@ -91,6 +92,7 @@ class Room {
         'legsWon': legsWon,
         'dartsInLeg': dartsInLeg,
         'lastApproach': lastApproach,
+        'turnStartTime': turnStartTime?.toIso8601String(),
       };
 
   /// Для лобби — только публичная информация

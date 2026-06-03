@@ -589,6 +589,29 @@ class WebSocketBackend implements BackendService {
             .add(PlayerTimeoutEvent(message['userId'] as String));
         break;
 
+      case 'player_reconnected':
+        _eventController
+            .add(PlayerReconnectedEvent(message['userId'] as String));
+        break;
+
+      case 'opponent_forfeit':
+        _eventController.add(OpponentForfeitEvent(
+          winnerIndex: message['winnerIndex'] as int,
+          loserIndex: message['loserIndex'] as int,
+          reason: message['reason'] as String? ?? 'unknown',
+        ));
+        break;
+
+      case 'game_resume':
+        _eventController.add(GameResumeEvent(
+          RoomState.fromJson(message['room'] as Map<String, dynamic>),
+        ));
+        break;
+
+      case 'no_active_game':
+        _eventController.add(NoActiveGameEvent());
+        break;
+
       case 'bust':
         _eventController.add(ErrorEvent(message['message'] as String? ?? 'Перебор!'));
         break;
@@ -597,6 +620,12 @@ class WebSocketBackend implements BackendService {
         _eventController.add(PongEvent());
         break;
     }
+  }
+
+  /// Проверить активную игру
+  Future<void> checkActiveGame() async {
+    await ensureConnected();
+    _send({'type': 'check_active_game'});
   }
 
   Future<void> _saveToken(String token) async {

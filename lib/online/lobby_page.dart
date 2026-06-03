@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
+import 'services/websocket_backend.dart';
 import 'auth/login_page.dart';
 import 'room_detail_page.dart';
 import 'room_creator_page.dart';
@@ -43,6 +44,16 @@ class _LobbyPageState extends State<LobbyPage> {
   Future<void> _enterLobbyWhenReady() async {
     await widget.backend.waitForConnection();
     widget.backend.enterLobby();
+    // Проверяем, есть ли активная игра
+    _checkActiveGame();
+  }
+
+  Future<void> _checkActiveGame() async {
+    // Ждём завершения reauth
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (widget.backend is WebSocketBackend) {
+      (widget.backend as WebSocketBackend).checkActiveGame();
+    }
   }
 
   @override
@@ -84,6 +95,25 @@ class _LobbyPageState extends State<LobbyPage> {
           ),
         );
         break;
+      case GameResumeEvent e:
+        // Есть активная игра — переходим в неё
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => OnlineGamePage501(
+              backend: widget.backend,
+              roomState: e.room,
+              playerName: widget.displayName,
+              userId: widget.backend.currentUserId,
+            ),
+          ),
+        );
+        break;
+
+      case NoActiveGameEvent _:
+        // Нет активной игры — остаёмся в лобби
+        debugPrint('Нет активной игры');
+        break;
+
       case ErrorEvent e:
         // E2: если «Не авторизован» — предложить перелогиниться
         if (e.message.contains('Не авторизован') || e.message.contains('не авторизован')) {

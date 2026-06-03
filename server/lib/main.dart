@@ -66,6 +66,9 @@ class GameServer {
   // Клиенты в лобби (получают обновления)
   final Set<WebSocketChannel> _lobbyClients = {};
 
+  // Таймеры переподключения: userId -> Timer (2 мин после дисконнекта)
+  final Map<String, Timer> _disconnectTimers = {};
+
   Timer? _heartbeatTimer;
   Timer? _timeoutTimer;
   Timer? _rateLimitCleanupTimer;
@@ -107,6 +110,7 @@ class GameServer {
 
     _timeoutTimer = Timer.periodic(_timeoutCheckInterval, (_) {
       _rooms.checkTimeouts();
+      _checkTurnTimeouts();
     });
 
     _rateLimitCleanupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
@@ -291,6 +295,9 @@ class GameServer {
         break;
       case 'ping':
         _handlePing(ws);
+        break;
+      case 'check_active_game':
+        _handleCheckActiveGame(ws);
         break;
       default:
         _send(ws, {'type': 'error', 'message': 'Неизвестный тип: $type'});
@@ -611,6 +618,12 @@ class GameServer {
     final room = _rooms.getPlayerRoom(userId);
     if (room == null) return;
 
+    // Если игра идёт — техническое поражение
+    if (room.status == RoomStatus.playing) {
+      _handleForfeit(userId, reason: 'left');
+      return;
+    }
+
     // Если создатель покидает — удаляем комнату
     if (room.creator?.userId == userId) {
       _rooms.removeRoom(room.id);
@@ -671,15 +684,29 @@ class GameServer {
       print('❌ Отключился пользователь $userId');
 
       final room = _rooms.getPlayerRoom(userId);
-      if (room != null) {
+      if (room != null && room.status == RoomStatus.playing) {
+        // Помечаем игрока как отключённого, НЕ удаляем из комнаты
+        final player = room.playerByUserId(userId);
+        if (player != null) {
+          player.isConnected = false;
+        }
+
+        // Уведомляем соперника
         _broadcastToRoom(room, {
           'type': 'player_disconnected',
           'userId': userId,
         });
-      }
 
-      _rooms.removePlayer(userId);
-      _broadcastLobbyUpdate();
+        // Запускаем таймер переподключения 2 минуты
+        _disconnectTimers[userId]?.cancel();
+        _disconnectTimers[userId] = Timer(const Duration(minutes: 2), () {
+          _handleForfeit(userId, reason: 'disconnect_timeout');
+        });
+      } else if (room != null) {
+        // Если игра ещё не началась — просто удаляем
+        _rooms.removePlayer(userId);
+        _broadcastLobbyUpdate();
+      }
     }
   }
 
@@ -700,6 +727,24 @@ class GameServer {
 
     _clients[userId] = ws;
     _clientUsers[ws] = userId;
+
+    // Проверяем, есть ли активная игра — если да, отменяем таймер переподключения
+    final room = _rooms.getPlayerRoom(userId);
+    if (room != null && room.status == RoomStatus.playing) {
+      _disconnectTimers[userId]?.cancel();
+      _disconnectTimers.remove(userId);
+
+      final player = room.playerByUserId(userId);
+      if (player != null) {
+        player.isConnected = true;
+      }
+
+      // Уведомляем соперника, что игрок вернулся
+      _broadcastToRoom(room, {
+        'type': 'player_reconnected',
+        'userId': userId,
+      });
+    }
   }
 
   void _send(WebSocketChannel ws, Map<String, dynamic> data) {
@@ -752,6 +797,77 @@ class GameServer {
           'userId': entry.key,
         });
       }
+    }
+  }
+
+  /// Проверить таймауты ходов (2 минуты на ход)
+  void _checkTurnTimeouts() {
+    final now = DateTime.now();
+    for (final room in _rooms.activeRooms) {
+      if (room.status != RoomStatus.playing) continue;
+      if (room.turnStartTime == null) continue;
+
+      if (now.difference(room.turnStartTime!) > const Duration(minutes: 2)) {
+        // Текущий игрок не сделал ход за 2 минуты
+        final currentUserId = room.players[room.currentPlayerIndex].userId;
+        print('⏰ Таймаут хода игрока $currentUserId');
+        _handleForfeit(currentUserId, reason: 'turn_timeout');
+      }
+    }
+  }
+
+  /// Обработать техническое поражение игрока
+  void _handleForfeit(String userId, {required String reason}) {
+    final room = _rooms.getPlayerRoom(userId);
+    if (room == null || room.status != RoomStatus.playing) return;
+
+    print('⚖️ Техническое поражение игрока $userId (причина: $reason)');
+
+    // Отменяем таймер переподключения, если был
+    _disconnectTimers[userId]?.cancel();
+    _disconnectTimers.remove(userId);
+
+    // Определяем победителя
+    final loserIndex = room.players.indexWhere((p) => p.userId == userId);
+    if (loserIndex == -1) return;
+    final winnerIndex = loserIndex == 0 ? 1 : 0;
+
+    // Завершаем игру
+    room.status = RoomStatus.finished;
+    room.finishedAt = DateTime.now();
+
+    // Сохраняем результат
+    _saveMatchResult(room);
+
+    // Уведомляем обоих игроков
+    _broadcastToRoom(room, {
+      'type': 'opponent_forfeit',
+      'winnerIndex': winnerIndex,
+      'loserIndex': loserIndex,
+      'reason': reason,
+    });
+
+    // Удаляем комнату
+    _rooms.removeRoom(room.id);
+    _broadcastLobbyUpdate();
+  }
+
+  /// Проверить активную игру для игрока
+  void _handleCheckActiveGame(WebSocketChannel ws) {
+    final userId = _clientUsers[ws];
+    if (userId == null) {
+      _send(ws, {'type': 'no_active_game'});
+      return;
+    }
+
+    final room = _rooms.getPlayerRoom(userId);
+    if (room != null && room.status == RoomStatus.playing) {
+      _send(ws, {
+        'type': 'game_resume',
+        'room': room.toJson(),
+      });
+    } else {
+      _send(ws, {'type': 'no_active_game'});
     }
   }
 

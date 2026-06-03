@@ -221,6 +221,25 @@ class PlayerTimeoutEvent extends ServerEvent {
   PlayerTimeoutEvent(this.userId);
 }
 
+class PlayerReconnectedEvent extends ServerEvent {
+  final String userId;
+  PlayerReconnectedEvent(this.userId);
+}
+
+class OpponentForfeitEvent extends ServerEvent {
+  final int winnerIndex;
+  final int loserIndex;
+  final String reason;
+  OpponentForfeitEvent({required this.winnerIndex, required this.loserIndex, required this.reason});
+}
+
+class GameResumeEvent extends ServerEvent {
+  final RoomState room;
+  GameResumeEvent(this.room);
+}
+
+class NoActiveGameEvent extends ServerEvent {}
+
 class PongEvent extends ServerEvent {}
 
 /// Абстрактный интерфейс бэкенда

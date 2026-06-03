@@ -93,6 +93,7 @@ class GameRoomManager {
     // Начинаем игру
     room.status = RoomStatus.playing;
     room.startedAt = DateTime.now();
+    room.turnStartTime = DateTime.now();
 
     return (room, null);
   }
@@ -143,6 +144,7 @@ class GameRoomManager {
       _playerRoom[userId] = roomId;
       room.status = RoomStatus.playing;
       room.startedAt = DateTime.now();
+      room.turnStartTime = DateTime.now();
       return (room, null);
     }
 
@@ -198,6 +200,7 @@ class GameRoomManager {
     room.legHistory[playerIndex].add(score);
     room.lastApproach[playerIndex] = score;
     room.dartsInLeg[playerIndex] += 3;
+    room.turnStartTime = DateTime.now();
 
     if (room.scores[playerIndex] == 0) {
       room.legsWon[playerIndex]++;

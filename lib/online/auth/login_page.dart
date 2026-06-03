@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/backend_service.dart';
 import '../server_url.dart';
 import 'register_page.dart';
 import '../lobby_page.dart';
+import '../online_game_page_501.dart';
 
 /// Страница входа
 class LoginPage extends StatefulWidget {
