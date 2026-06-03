@@ -34,6 +34,8 @@ server/lib/
 - **501**: сумма/per-dart, undo, bust, double out, сеты/леги, average, checkout-подсказки
 - **Боты**: 5 уровней, Double Out/In, свои checkout-таблицы
 - **Онлайн**: регистрация, JWT, WebSocket (heartbeat, reconnect, re-auth), лобби, комнаты, матч 501
+- **Онлайн: reconnect-диалог** — не показывает форфейт, если соперник вернулся
+- **Онлайн: per-dart режим ввода** — переключение сумма/по-дротику через ⚙️ в статус-баре
 - **Тренировки**: Сектор (счётчик попаданий), Around the Clock (выбор Single/Double/Triple), Classic 1→20→Bull
 - **Сервер**: SQLite WAL, rate limit (30/10s), graceful shutdown, health check, Docker multi-stage
 - **Деплой**: VPS + Docker + Caddy (HTTPS авто), скрипт setup.sh
@@ -47,6 +49,8 @@ server/lib/
 | **Онлайн: turn timeout** | Нет — игрок может висеть бесконечно |
 | **Онлайн: pendingPlayers** | Не очищается при выходе из комнаты |
 | **Онлайн: state reconciliation** | Нет — reconnect не синхронизирует состояние |
+| **Онлайн: per-dart на сервере** | Клиент умеет, но сервер хранит только сумму — соперник не видит отдельные дротики |
+| **Онлайн: Double Out проверка** | На сервере нет — клиент локально не проверяет (кроме локальной игры) |
 | **Статистика / Настройки** | StubPage |
 | `lib/data/checkouts.dart` | Только 60–170, нет 41–59 |
 
