@@ -47,6 +47,12 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   bool _isMyTurn = false;
   int _myIndex = 0;
 
+  // Режим ввода (сумма / каждый бросок)
+  bool _isSumMode = true;
+
+  // Результаты дротиков последнего подхода (для per-dart режима)
+  List<DartEntryDisplay> _lastDartResults = [];
+
   // Таймер хода
   Timer? _turnTimer;
   int _turnSecondsLeft = 120; // 2 минуты
@@ -500,6 +506,8 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     if (_dartEntries.every((e) => e.isEmpty)) return;
 
     final total = _dartEntries.fold<int>(0, (sum, e) => sum + e.score);
+    // Сохраняем результаты дротиков для отображения на табло
+    _lastDartResults = List.from(_dartEntries);
     _submitThrow(total);
 
     setState(() {
@@ -678,11 +686,93 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           lastApproach: _room.lastApproach[i],
           dartsInLeg: darts,
           isActive: _room.currentPlayerIndex == i,
+          // Показываем результаты дротиков только для себя в per-dart режиме
+          lastDartResults: (i == _myIndex && !_isSumMode)
+              ? _lastDartResults
+              : [],
         );
       }).toList(),
       currentPlayerIndex: _room.currentPlayerIndex,
       gameType: '501',
       isDoubleOut: true,
+    );
+  }
+
+  void _showSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Настройки игры',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Режим ввода',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _InputModeOption(
+                          icon: Icons.numbers,
+                          label: 'Сумма подхода',
+                          isSelected: _isSumMode,
+                          onTap: () {
+                            setState(() { _isSumMode = true; });
+                            setSheetState(() {});
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _InputModeOption(
+                          icon: Icons.sports_kabaddi,
+                          label: 'Каждый бросок',
+                          isSelected: !_isSumMode,
+                          onTap: () {
+                            setState(() { _isSumMode = false; });
+                            setSheetState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      child: const Text('Закрыть'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -733,6 +823,13 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
+          // Кнопка настроек
+          IconButton(
+            icon: const Icon(Icons.settings, size: 20),
+            onPressed: _showSettingsSheet,
+            tooltip: 'Настройки',
+            visualDensity: VisualDensity.compact,
+          ),
         ],
       ),
     );
@@ -760,24 +857,24 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         GameDartStatusBar(
           dartEntries: _dartEntries,
           currentDartIndex: _currentDartIndex,
-          isSumMode: true,
-          onQuickSum: _onQuickSum,
+          isSumMode: _isSumMode,
+          onQuickSum: _isSumMode ? _onQuickSum : null,
         ),
         // Панель ввода
         Expanded(
           child: GameDartInputPanel(
-            isSumMode: true,
+            isSumMode: _isSumMode,
             inputBuffer: _inputBuffer,
             dartEntries: _dartEntries,
             currentDartIndex: _currentDartIndex,
             selectedModifier: _selectedModifier,
             currentScore: _room.scores[_myIndex],
-            onDigit: _onSumDigit,
-            onClear: _onSumClear,
-            onSubmit: _onSubmitSum,
-            onRemainder: _onRemainder,
+            onDigit: _isSumMode ? _onSumDigit : _onDartDigit,
+            onClear: _isSumMode ? _onSumClear : _onDartClear,
+            onSubmit: _isSumMode ? _onSubmitSum : _onSubmitDart,
+            onRemainder: _isSumMode ? _onRemainder : null,
             onUndo: null,
-            onModifierSelect: _onModifierSelect,
+            onModifierSelect: _isSumMode ? null : _onModifierSelect,
           ),
         ),
       ],
@@ -836,6 +933,72 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
             backgroundColor: theme.colorScheme.surfaceContainerHighest,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ВИДЖЕТЫ
+// ===================================================================
+
+/// Виджет выбора режима ввода в BottomSheet
+class _InputModeOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _InputModeOption({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 28,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
