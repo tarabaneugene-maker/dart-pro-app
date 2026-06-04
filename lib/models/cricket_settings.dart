@@ -7,12 +7,14 @@ class CricketSettings {
   final int legs;
   final List<PlayerConfig> players;
   final int startingPlayerIndex;
+  final CricketVariant cricketVariant;
 
   CricketSettings({
     required this.sets,
     required this.legs,
     required this.players,
     required this.startingPlayerIndex,
+    this.cricketVariant = CricketVariant.classic,
   });
 
   /// Настройки по умолчанию для Cricket
@@ -33,6 +35,7 @@ class CricketSettings {
         ],
         startingPlayerIndex: 0,
       );
+
 
   /// Получить максимальное количество игроков
   int get maxPlayers => 4;
@@ -60,13 +63,16 @@ class CricketSettings {
     int? legs,
     List<PlayerConfig>? players,
     int? startingPlayerIndex,
+    CricketVariant? cricketVariant,
   }) =>
       CricketSettings(
         sets: sets ?? this.sets,
         legs: legs ?? this.legs,
         players: players ?? this.players,
         startingPlayerIndex: startingPlayerIndex ?? this.startingPlayerIndex,
+        cricketVariant: cricketVariant ?? this.cricketVariant,
       );
+
 
   @override
   String toString() {

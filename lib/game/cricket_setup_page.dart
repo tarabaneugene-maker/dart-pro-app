@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/cricket_settings.dart';
 import '../models/player_config.dart';
 import '../models/game_enums.dart';
+import 'cricket_game_page.dart';
 
 /// Страница настройки игры Cricket
 class CricketSetupPage extends StatefulWidget {
@@ -14,6 +15,7 @@ class CricketSetupPage extends StatefulWidget {
 class _CricketSetupPageState extends State<CricketSetupPage> {
   late CricketSettings _settings;
   final int maxPlayers = 4;
+
 
   @override
   void initState() {
@@ -219,17 +221,46 @@ class _CricketSetupPageState extends State<CricketSetupPage> {
                 }
               },
             ),
+            const SizedBox(height: 16),
+            // Выбор варианта Cricket
+            DropdownButtonFormField<CricketVariant>(
+              initialValue: _settings.cricketVariant,
+              decoration: const InputDecoration(labelText: 'Вариант Cricket'),
+              items: [
+                const DropdownMenuItem(
+                  value: CricketVariant.classic,
+                  child: Text('Classic (закрытие секторов)'),
+                ),
+                const DropdownMenuItem(
+                  value: CricketVariant.american,
+                  child: Text('American (с набором очков)'),
+                ),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() {
+                    _settings = CricketSettings(
+                      sets: _settings.sets,
+                      legs: _settings.legs,
+                      players: _settings.players,
+                      startingPlayerIndex: _settings.startingPlayerIndex,
+                      cricketVariant: v,
+                    );
+                  });
+                }
+              },
+            ),
             const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               height: 48,
               child: FilledButton.icon(
                 onPressed: () {
-                  // TODO: переход на страницу Cricket
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Режим Cricket в разработке')),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CricketGamePage(settings: _settings),
+                    ),
                   );
-                  Navigator.of(context).pop();
                 },
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Начать игру', style: TextStyle(fontSize: 16)),
@@ -240,6 +271,7 @@ class _CricketSetupPageState extends State<CricketSetupPage> {
                 ),
               ),
             ),
+
             const SizedBox(height: 20),
           ],
         ),

@@ -22,6 +22,10 @@ enum StartType { straightIn, doubleIn }
 /// Типы финиша
 enum FinishType { doubleOut, straightOut }
 
+/// Варианты игры Cricket
+enum CricketVariant { classic, american }
+
+
 /// Вспомогательные методы для BotLevel
 extension BotLevelExtension on BotLevel {
   /// Получить текстовое описание уровня
