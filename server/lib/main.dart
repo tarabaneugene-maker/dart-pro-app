@@ -66,8 +66,10 @@ class GameServer {
   // Клиенты в лобби (получают обновления)
   final Set<WebSocketChannel> _lobbyClients = {};
 
-  // Таймеры переподключения: userId -> Timer (2 мин после дисконнекта)
-  final Map<String, Timer> _disconnectTimers = {};
+  // Grace-таймеры: roomId -> Timer (60 сек после turn_timeout)
+  final Map<String, Timer> _graceTimers = {};
+  // Флаг: был ли уже turn_timeout для комнаты (чтобы не спамить)
+  final Set<String> _turnTimeoutSent = {};
 
   Timer? _heartbeatTimer;
   Timer? _timeoutTimer;
@@ -105,7 +107,7 @@ class GameServer {
     });
 
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
-      _checkHeartbeats();
+      // Heartbeat обновляется через ping, таймауты хода проверяются отдельно
     });
 
     _timeoutTimer = Timer.periodic(_timeoutCheckInterval, (_) {
@@ -296,10 +298,18 @@ class GameServer {
       case 'ping':
         _handlePing(ws);
         break;
+      case 'forfeit_request':
+        // Активный игрок нажал «Завершить» в диалоге turn_timeout
+        final userId = _clientUsers[ws];
+        if (userId != null) {
+          _handleForfeit(userId, reason: 'opponent_forfeit');
+        }
+        break;
       case 'check_active_game':
         _handleCheckActiveGame(ws);
         break;
       default:
+
         _send(ws, {'type': 'error', 'message': 'Неизвестный тип: $type'});
     }
   }
@@ -661,6 +671,11 @@ class GameServer {
 
     if (room == null) return;
 
+    // Добавляем timeLeft в ответ
+    final now = DateTime.now();
+    final elapsed = now.difference(room.turnStartTime!);
+    result['timeLeft'] = (120 - elapsed.inSeconds).clamp(0, 120);
+
     if (result['type'] == 'match_won') {
       _saveMatchResult(room);
     }
@@ -690,18 +705,7 @@ class GameServer {
         if (player != null) {
           player.isConnected = false;
         }
-
-        // Уведомляем соперника
-        _broadcastToRoom(room, {
-          'type': 'player_disconnected',
-          'userId': userId,
-        });
-
-        // Запускаем таймер переподключения 2 минуты
-        _disconnectTimers[userId]?.cancel();
-        _disconnectTimers[userId] = Timer(const Duration(minutes: 2), () {
-          _handleForfeit(userId, reason: 'disconnect_timeout');
-        });
+        // НЕ уведомляем соперника — полагаемся на таймер хода
       } else if (room != null) {
         // Если игра ещё не началась — просто удаляем
         _rooms.removePlayer(userId);
@@ -728,21 +732,23 @@ class GameServer {
     _clients[userId] = ws;
     _clientUsers[ws] = userId;
 
-    // Проверяем, есть ли активная игра — если да, отменяем таймер переподключения
+    // Проверяем, есть ли активная игра
     final room = _rooms.getPlayerRoom(userId);
     if (room != null && room.status == RoomStatus.playing) {
-      _disconnectTimers[userId]?.cancel();
-      _disconnectTimers.remove(userId);
+      // Отменяем grace-таймер, если был
+      _graceTimers[room.id]?.cancel();
+      _graceTimers.remove(room.id);
+      _turnTimeoutSent.remove(room.id);
 
       final player = room.playerByUserId(userId);
       if (player != null) {
         player.isConnected = true;
       }
 
-      // Уведомляем соперника, что игрок вернулся
-      _broadcastToRoom(room, {
-        'type': 'player_reconnected',
-        'userId': userId,
+      // Отправляем состояние игры самому вернувшемуся игроку
+      _send(ws, {
+        'type': 'game_resume',
+        'room': room.toJson(),
       });
     }
   }
@@ -782,24 +788,6 @@ class GameServer {
     }
   }
 
-  void _checkHeartbeats() {
-    final now = DateTime.now();
-    for (final entry in _clients.entries) {
-      final room = _rooms.getPlayerRoom(entry.key);
-      if (room == null) continue;
-      final player = room.playerByUserId(entry.key);
-      if (player != null &&
-          now.difference(player.lastHeartbeat) >
-              const Duration(seconds: 45)) {
-        player.isConnected = false;
-        _broadcastToRoom(room, {
-          'type': 'player_timeout',
-          'userId': entry.key,
-        });
-      }
-    }
-  }
-
   /// Проверить таймауты ходов (2 минуты на ход)
   void _checkTurnTimeouts() {
     final now = DateTime.now();
@@ -807,14 +795,42 @@ class GameServer {
       if (room.status != RoomStatus.playing) continue;
       if (room.turnStartTime == null) continue;
 
-      if (now.difference(room.turnStartTime!) > const Duration(minutes: 2)) {
-        // Текущий игрок не сделал ход за 2 минуты
+      final elapsed = now.difference(room.turnStartTime!);
+      final timeLeft = (120 - elapsed.inSeconds).clamp(0, 120);
+
+      if (elapsed > const Duration(minutes: 2)) {
         final currentUserId = room.players[room.currentPlayerIndex].userId;
         print('⏰ Таймаут хода игрока $currentUserId');
-        _handleForfeit(currentUserId, reason: 'turn_timeout');
+
+        if (!_turnTimeoutSent.contains(room.id)) {
+          // Первый раз — отправляем предупреждение сопернику
+          _turnTimeoutSent.add(room.id);
+
+          // Отправляем turn_timeout сопернику (активному игроку)
+          final opponentIndex = room.currentPlayerIndex == 0 ? 1 : 0;
+          final opponentWs = _clients[room.players[opponentIndex].userId];
+          if (opponentWs != null) {
+            _send(opponentWs, {
+              'type': 'turn_timeout',
+              'timeLeft': 0,
+              'room': room.toJson(),
+            });
+          }
+
+          // Запускаем grace-таймер 60 секунд
+          _graceTimers[room.id]?.cancel();
+          _graceTimers[room.id] = Timer(const Duration(seconds: 60), () {
+            // Grace-период истёк — форфейт
+            _handleForfeit(currentUserId, reason: 'turn_timeout');
+          });
+        } else if (_graceTimers.containsKey(room.id)) {
+          // Grace-таймер уже тикает — проверяем, не истёк ли
+          // Timer сам сработает через 60 сек, ничего не делаем
+        }
       }
     }
   }
+
 
   /// Обработать техническое поражение игрока
   void _handleForfeit(String userId, {required String reason}) {
@@ -823,11 +839,13 @@ class GameServer {
 
     print('⚖️ Техническое поражение игрока $userId (причина: $reason)');
 
-    // Отменяем таймер переподключения, если был
-    _disconnectTimers[userId]?.cancel();
-    _disconnectTimers.remove(userId);
+    // Отменяем grace-таймер, если был
+    _graceTimers[room.id]?.cancel();
+    _graceTimers.remove(room.id);
+    _turnTimeoutSent.remove(room.id);
 
     // Определяем победителя
+
     final loserIndex = room.players.indexWhere((p) => p.userId == userId);
     if (loserIndex == -1) return;
     final winnerIndex = loserIndex == 0 ? 1 : 0;

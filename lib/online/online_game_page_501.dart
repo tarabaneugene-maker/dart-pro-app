@@ -55,15 +55,13 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
   // Таймер хода
   Timer? _turnTimer;
-  int _turnSecondsLeft = 120; // 2 минуты
+  int _turnSecondsLeft = 120;
   static const int _turnTimeout = 120;
 
-  // Таймер переподключения соперника
-  Timer? _reconnectTimer;
-  int _reconnectSecondsLeft = 120;
-  bool _showReconnectDialog = false;
-  BuildContext? _reconnectDialogContext;
-  bool _opponentReconnected = false;
+  // Диалог turn_timeout
+  bool _showTurnTimeoutDialog = false;
+  BuildContext? _turnTimeoutDialogContext;
+  bool _turnTimeoutForfeitRequested = false;
 
   @override
   void initState() {
@@ -91,7 +89,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   void dispose() {
     _subscription?.cancel();
     _turnTimer?.cancel();
-    _reconnectTimer?.cancel();
     super.dispose();
   }
 
@@ -99,9 +96,9 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     _isMyTurn = _room.currentPlayerIndex == _myIndex;
   }
 
-  void _startTurnTimer() {
+  void _startTurnTimer({int? timeLeft}) {
     _turnTimer?.cancel();
-    _turnSecondsLeft = _turnTimeout;
+    _turnSecondsLeft = timeLeft ?? _turnTimeout;
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -112,29 +109,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       });
       if (_turnSecondsLeft <= 0) {
         timer.cancel();
-      }
-    });
-  }
-
-  void _startReconnectTimer() {
-    _reconnectTimer?.cancel();
-    _reconnectSecondsLeft = 120;
-    setState(() {
-      _showReconnectDialog = true;
-    });
-    _reconnectTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _reconnectSecondsLeft--;
-      });
-      if (_reconnectSecondsLeft <= 0) {
-        timer.cancel();
-        setState(() {
-          _showReconnectDialog = false;
-        });
       }
     });
   }
@@ -160,7 +134,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer();
+        _startTurnTimer(timeLeft: e.timeLeft);
         break;
 
       case LegWonEvent e:
@@ -179,7 +153,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer();
+        _startTurnTimer(timeLeft: e.timeLeft);
         _showLegWonDialog(e.winnerIndex);
         break;
 
@@ -203,38 +177,17 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         _showMatchWonDialog(e.winnerIndex);
         break;
 
-      case PlayerDisconnectedEvent e:
-        if (e.userId != widget.userId) {
-          // Соперник отключился — показываем диалог с таймером
-          _startReconnectTimer();
-        }
-        break;
-
-      case PlayerReconnectedEvent e:
-        if (e.userId != widget.userId) {
-          // Соперник вернулся — скрываем диалог
-          _reconnectTimer?.cancel();
-          setState(() {
-            _showReconnectDialog = false;
-            _opponentReconnected = true;
-          });
-          // Закрываем диалог, если он открыт
-          if (_reconnectDialogContext != null) {
-            Navigator.of(_reconnectDialogContext!).pop();
-            _reconnectDialogContext = null;
-          }
-          _showSnackBar('Соперник вернулся');
-          // Сбрасываем таймер хода
-          _startTurnTimer();
+      case TurnTimeoutEvent e:
+        // Соперник не ходит 2+ минуты — показываем диалог
+        if (!_showTurnTimeoutDialog && !_turnTimeoutForfeitRequested) {
+          _showTurnTimeoutDialog = true;
+          _showTurnTimeoutDialogWidget(e.timeLeft);
         }
         break;
 
       case OpponentForfeitEvent e:
         _turnTimer?.cancel();
-        _reconnectTimer?.cancel();
-        setState(() {
-          _showReconnectDialog = false;
-        });
+        _closeTurnTimeoutDialog();
         if (e.winnerIndex == _myIndex) {
           _showOpponentForfeitDialog(isWinner: true, reason: e.reason);
         } else {
@@ -242,8 +195,14 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         }
         break;
 
-      case PlayerTimeoutEvent _:
-        _showSnackBar('Соперник потерял соединение');
+      case GameResumeEvent e:
+        // Обновляем состояние игры после переподключения
+        setState(() {
+          _room = e.room;
+          _updateTurn();
+          _resetInput();
+        });
+        _startTurnTimer();
         break;
 
       case ErrorEvent e:
@@ -253,6 +212,53 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
       default:
         break;
     }
+  }
+
+  void _closeTurnTimeoutDialog() {
+    if (_turnTimeoutDialogContext != null) {
+      try {
+        Navigator.of(_turnTimeoutDialogContext!).pop();
+      } catch (_) {}
+      _turnTimeoutDialogContext = null;
+    }
+    setState(() {
+      _showTurnTimeoutDialog = false;
+    });
+  }
+
+  void _showTurnTimeoutDialogWidget(int timeLeft) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        _turnTimeoutDialogContext = ctx;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          title: const Text('Соперник не ходит'),
+          content: const Text(
+            'Соперник превысил лимит времени на ход.\n'
+            'У вас есть 60 секунд, чтобы запросить победу.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _turnTimeoutForfeitRequested = true;
+                widget.backend.sendForfeitRequest();
+                _closeTurnTimeoutDialog();
+              },
+              child: const Text('Завершить игру (победа)'),
+            ),
+            TextButton(
+              onPressed: () {
+                _closeTurnTimeoutDialog();
+              },
+              child: const Text('Подождать'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _resetInput() {
@@ -546,13 +552,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
-    // Показываем диалог переподключения, если нужно
-    if (_showReconnectDialog) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showReconnectDialogWidget();
-      });
-    }
-
     return PopScope(
       canPop: _room.status == 'finished',
       onPopInvokedWithResult: (didPop, _) async {
@@ -570,66 +569,6 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
         ),
       ),
     );
-  }
-
-  void _showReconnectDialogWidget() {
-    if (!mounted || !_showReconnectDialog) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        // Сохраняем контекст диалога для закрытия при возврате соперника
-        _reconnectDialogContext = ctx;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            // Обновляем диалог каждую секунду
-            Future.delayed(const Duration(seconds: 1), () {
-              if (mounted && _showReconnectDialog) {
-                setDialogState(() {});
-              }
-            });
-            final minutes = _reconnectSecondsLeft ~/ 60;
-            final seconds = _reconnectSecondsLeft % 60;
-            final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              title: const Text('Соперник отключился'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Ожидание переподключения...'),
-                  const SizedBox(height: 16),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: _reconnectSecondsLeft / 120,
-                    color: _reconnectSecondsLeft < 30 ? Colors.red : null,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) {
-      _reconnectDialogContext = null;
-      // Диалог закрыт — если соперник вернулся, ничего не показываем
-      if (_opponentReconnected) {
-        _opponentReconnected = false;
-        return;
-      }
-      // Диалог закрыт — если игра ещё не завершена, показываем результат
-      if (mounted && _room.status != 'finished') {
-        _showOpponentForfeitDialog(isWinner: true, reason: 'disconnect_timeout');
-      }
-    });
   }
 
   Widget _buildPortraitLayout(ThemeData theme) {

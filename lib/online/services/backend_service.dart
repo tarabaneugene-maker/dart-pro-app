@@ -187,6 +187,7 @@ class ThrowResultEvent extends ServerEvent {
   final int currentPlayerIndex;
   final List<int> dartsInLeg;
   final List<int?> lastApproach;
+  final int timeLeft;
 
   ThrowResultEvent({
     required this.playerIndex,
@@ -195,6 +196,7 @@ class ThrowResultEvent extends ServerEvent {
     required this.currentPlayerIndex,
     required this.dartsInLeg,
     required this.lastApproach,
+    this.timeLeft = 120,
   });
 }
 
@@ -202,7 +204,8 @@ class LegWonEvent extends ServerEvent {
   final int winnerIndex;
   final List<int> scores;
   final int currentPlayerIndex;
-  LegWonEvent({required this.winnerIndex, required this.scores, required this.currentPlayerIndex});
+  final int timeLeft;
+  LegWonEvent({required this.winnerIndex, required this.scores, required this.currentPlayerIndex, this.timeLeft = 120});
 }
 
 class MatchWonEvent extends ServerEvent {
@@ -211,20 +214,11 @@ class MatchWonEvent extends ServerEvent {
   MatchWonEvent({required this.winnerIndex, required this.scores});
 }
 
-class PlayerDisconnectedEvent extends ServerEvent {
-  final String userId;
-  PlayerDisconnectedEvent(this.userId);
+class TurnTimeoutEvent extends ServerEvent {
+  final int timeLeft;
+  TurnTimeoutEvent({this.timeLeft = 0});
 }
 
-class PlayerTimeoutEvent extends ServerEvent {
-  final String userId;
-  PlayerTimeoutEvent(this.userId);
-}
-
-class PlayerReconnectedEvent extends ServerEvent {
-  final String userId;
-  PlayerReconnectedEvent(this.userId);
-}
 
 class OpponentForfeitEvent extends ServerEvent {
   final int winnerIndex;
@@ -241,6 +235,7 @@ class GameResumeEvent extends ServerEvent {
 class NoActiveGameEvent extends ServerEvent {}
 
 class PongEvent extends ServerEvent {}
+
 
 /// Абстрактный интерфейс бэкенда
 abstract class BackendService {
@@ -267,8 +262,10 @@ abstract class BackendService {
   Future<void> joinByCode(String code, String playerName, {double avg = 0});
   Future<void> leaveRoom();
   Future<void> sendThrow(int score);
+  Future<void> sendForfeitRequest();
 
   Stream<ServerEvent> get events;
+
   String? get savedToken;
   String? get currentUserId;
   void saveToken(String token);

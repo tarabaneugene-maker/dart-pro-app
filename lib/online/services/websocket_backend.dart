@@ -398,7 +398,14 @@ class WebSocketBackend implements BackendService {
   }
 
   @override
+  Future<void> sendForfeitRequest() async {
+    await ensureConnected();
+    _send({'type': 'forfeit_request'});
+  }
+
+  @override
   Stream<ServerEvent> get events => _eventController.stream;
+
 
   @override
   void saveToken(String token) {
@@ -561,6 +568,7 @@ class WebSocketBackend implements BackendService {
           lastApproach: (message['lastApproach'] as List)
               .map((e) => e as int?)
               .toList(),
+          timeLeft: (message['timeLeft'] as int?) ?? 120,
         ));
         break;
 
@@ -569,6 +577,7 @@ class WebSocketBackend implements BackendService {
           winnerIndex: message['winnerIndex'] as int,
           scores: (message['scores'] as List).cast<int>(),
           currentPlayerIndex: message['currentPlayerIndex'] as int,
+          timeLeft: (message['timeLeft'] as int?) ?? 120,
         ));
         break;
 
@@ -579,20 +588,12 @@ class WebSocketBackend implements BackendService {
         ));
         break;
 
-      case 'player_disconnected':
-        _eventController
-            .add(PlayerDisconnectedEvent(message['userId'] as String));
+      case 'turn_timeout':
+        _eventController.add(TurnTimeoutEvent(
+          timeLeft: (message['timeLeft'] as int?) ?? 0,
+        ));
         break;
 
-      case 'player_timeout':
-        _eventController
-            .add(PlayerTimeoutEvent(message['userId'] as String));
-        break;
-
-      case 'player_reconnected':
-        _eventController
-            .add(PlayerReconnectedEvent(message['userId'] as String));
-        break;
 
       case 'opponent_forfeit':
         _eventController.add(OpponentForfeitEvent(
