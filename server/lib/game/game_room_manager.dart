@@ -171,7 +171,8 @@ class GameRoomManager {
 
   /// Обработать ход игрока
   Map<String, dynamic>? processThrow(
-      String userId, int score, int legsToWin) {
+      String userId, int score, int legsToWin,
+      {int? dartsUsed}) {
     final room = getPlayerRoom(userId);
     if (room == null) return null;
     if (room.status != RoomStatus.playing) return null;
@@ -199,7 +200,9 @@ class GameRoomManager {
     room.scores[playerIndex] = currentScore - score;
     room.legHistory[playerIndex].add(score);
     room.lastApproach[playerIndex] = score;
-    room.dartsInLeg[playerIndex] += 3;
+    // Используем dartsUsed если передан, иначе +3
+    final actualDarts = dartsUsed ?? 3;
+    room.dartsInLeg[playerIndex] += actualDarts;
     room.turnStartTime = DateTime.now();
 
     if (room.scores[playerIndex] == 0) {
@@ -213,6 +216,7 @@ class GameRoomManager {
           'winnerIndex': playerIndex,
           'scores': room.legsWon,
           'legHistory': room.legHistory,
+          'dartsInLeg': room.dartsInLeg,
         };
       }
 
@@ -231,6 +235,7 @@ class GameRoomManager {
         'winnerIndex': playerIndex,
         'currentPlayerIndex': room.currentPlayerIndex,
         'scores': room.legsWon,
+        'dartsInLeg': room.dartsInLeg,
       };
     }
 
@@ -247,6 +252,7 @@ class GameRoomManager {
       'lastApproach': room.lastApproach,
     };
   }
+
 
   void updateHeartbeat(String userId) {
     final room = getPlayerRoom(userId);

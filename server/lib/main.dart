@@ -660,10 +660,15 @@ class GameServer {
       return;
     }
 
+    final dartsUsed = message['dartsUsed'] as int?;
+
     // Берём legsToWin из gameParams комнаты (по умолчанию 3)
     final room = _rooms.getPlayerRoom(userId);
     final legsToWin = (room?.gameParams?['legs'] as int?) ?? 3;
-    final result = _rooms.processThrow(userId, score, legsToWin);
+    final result = _rooms.processThrow(userId, score, legsToWin,
+        dartsUsed: dartsUsed);
+
+
     if (result == null) {
       _send(ws, {'type': 'error', 'message': 'Неверный ход'});
       return;
@@ -745,11 +750,20 @@ class GameServer {
         player.isConnected = true;
       }
 
+      // Вычисляем timeLeft для вернувшегося игрока
+      final now = DateTime.now();
+      final elapsed = room.turnStartTime != null
+          ? now.difference(room.turnStartTime!)
+          : Duration.zero;
+      final timeLeft = (120 - elapsed.inSeconds).clamp(0, 120);
+
       // Отправляем состояние игры самому вернувшемуся игроку
       _send(ws, {
         'type': 'game_resume',
         'room': room.toJson(),
+        'timeLeft': timeLeft,
       });
+
     }
   }
 
@@ -880,11 +894,18 @@ class GameServer {
 
     final room = _rooms.getPlayerRoom(userId);
     if (room != null && room.status == RoomStatus.playing) {
+      final now = DateTime.now();
+      final elapsed = room.turnStartTime != null
+          ? now.difference(room.turnStartTime!)
+          : Duration.zero;
+      final timeLeft = (120 - elapsed.inSeconds).clamp(0, 120);
       _send(ws, {
         'type': 'game_resume',
         'room': room.toJson(),
+        'timeLeft': timeLeft,
       });
     } else {
+
       _send(ws, {'type': 'no_active_game'});
     }
   }

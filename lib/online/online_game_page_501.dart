@@ -83,9 +83,10 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
     }
     if (_myIndex == -1) _myIndex = 0;
     _updateTurn();
-    _startTurnTimer();
+    // Таймер запускается из _handleEvent при получении первого события
 
     _subscription = widget.backend.events.listen(_handleEvent);
+
   }
 
   @override
@@ -217,13 +218,15 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
 
       case GameResumeEvent e:
         // Обновляем состояние игры после переподключения
-        // НЕ сбрасываем таймер — сервер пришлёт ThrowResultEvent с timeLeft
+        // Запускаем таймер с timeLeft от сервера
         setState(() {
           _room = e.room;
           _updateTurn();
           _resetInput();
         });
+        _startTurnTimer(timeLeft: e.timeLeft);
         break;
+
 
 
       case ErrorEvent e:
@@ -557,11 +560,48 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
       _showSnackBar('Невозможная сумма ($score) для трёх дротиков');
       return;
     }
-    widget.backend.sendThrow(score);
+
+    final myScore = _room.scores[_myIndex];
+    final isLegWinning = score == myScore;
+
+    if (isLegWinning) {
+      // Показываем диалог выбора количества дротиков
+      _showDartsUsedDialog(score);
+    } else {
+      _doSendThrow(score, null);
+    }
+  }
+
+  void _showDartsUsedDialog(int score) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Закрытие лега'),
+        content: const Text('Сколько дротиков использовано?'),
+        actions: [
+          for (int d = 1; d <= 3; d++)
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _doSendThrow(score, d);
+              },
+              child: Text('$d'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _doSendThrow(int score, int? dartsUsed) {
+    widget.backend.sendThrow(score, dartsUsed: dartsUsed);
     setState(() {
       _inputBuffer = '';
     });
   }
+
 
   // ===================================================================
   // BUILD

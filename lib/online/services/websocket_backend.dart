@@ -391,11 +391,16 @@ class WebSocketBackend implements BackendService {
   }
 
   @override
-  Future<void> sendThrow(int score) async {
+  Future<void> sendThrow(int score, {int? dartsUsed}) async {
     await ensureConnected();
     await waitForAuth();
-    _send({'type': 'throw', 'score': score});
+    _send({
+      'type': 'throw',
+      'score': score,
+      if (dartsUsed != null) 'dartsUsed': dartsUsed,
+    });
   }
+
 
   @override
   Future<void> sendForfeitRequest() async {
@@ -606,8 +611,10 @@ class WebSocketBackend implements BackendService {
       case 'game_resume':
         _eventController.add(GameResumeEvent(
           RoomState.fromJson(message['room'] as Map<String, dynamic>),
+          timeLeft: (message['timeLeft'] as int?) ?? 120,
         ));
         break;
+
 
       case 'no_active_game':
         _eventController.add(NoActiveGameEvent());

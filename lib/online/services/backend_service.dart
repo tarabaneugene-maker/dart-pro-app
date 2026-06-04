@@ -229,8 +229,10 @@ class OpponentForfeitEvent extends ServerEvent {
 
 class GameResumeEvent extends ServerEvent {
   final RoomState room;
-  GameResumeEvent(this.room);
+  final int timeLeft;
+  GameResumeEvent(this.room, {this.timeLeft = 120});
 }
+
 
 class NoActiveGameEvent extends ServerEvent {}
 
@@ -261,7 +263,8 @@ abstract class BackendService {
   Future<void> rejectJoin(String roomId);
   Future<void> joinByCode(String code, String playerName, {double avg = 0});
   Future<void> leaveRoom();
-  Future<void> sendThrow(int score);
+  Future<void> sendThrow(int score, {int? dartsUsed});
+
   Future<void> sendForfeitRequest();
 
   Stream<ServerEvent> get events;
