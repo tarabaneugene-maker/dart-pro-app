@@ -316,10 +316,16 @@ class _GamePage501State extends State<GamePage501> {
         // В per-dart режиме _onSubmitDart сам вызовет _finishLegWithDarts
         return;
       }
-      // Для бота или sum-mode — используем общее кол-во дротиков в леге
+      if (!isBot && _currentInputMode == InputMode.threeDarts) {
+        // Для человека в режиме суммы — спрашиваем сколько дротиков
+        _showDartsUsedDialog(state.dartsInLeg);
+        return;
+      }
+      // Для бота — используем общее кол-во дротиков в леге
       _finishLegWithDarts(state.dartsInLeg);
       return;
     }
+
 
     if (!isBot && !skipFinish) _nextPlayer();
   }
@@ -384,7 +390,65 @@ class _GamePage501State extends State<GamePage501> {
     );
   }
 
+  void _showDartsUsedDialog(int currentDartsInLeg) {
+    final isDoubleOut = widget.settings.finishType == FinishType.doubleOut;
+    // Счёт, которым закрыли — это последнее введённое значение
+    final lastValue = _players[_currentPlayerIndex].legHistory.isNotEmpty
+        ? _players[_currentPlayerIndex].legHistory.last
+        : 0;
+
+    // Определяем какие варианты доступны
+    final can1 = canFinishWithDarts(lastValue, 1, isDoubleOut: isDoubleOut);
+    final can2 = canFinishWithDarts(lastValue, 2, isDoubleOut: isDoubleOut);
+    final can3 = canFinishWithDarts(lastValue, 3, isDoubleOut: isDoubleOut);
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Сколько дротиков использовано?'),
+        content: const Text('Выберите количество дротиков, которым закрыли лег:'),
+        actions: [
+          TextButton(
+            onPressed: can1
+                ? () {
+                    Navigator.of(ctx).pop();
+                    _finishLegWithDarts(currentDartsInLeg - 2); // -3 +1
+                  }
+                : null,
+            child: Text('1 дротик${can1 ? '' : ' (недоступно)'}'),
+          ),
+          TextButton(
+            onPressed: can2
+                ? () {
+                    Navigator.of(ctx).pop();
+                    _finishLegWithDarts(currentDartsInLeg - 1); // -3 +2
+                  }
+                : null,
+            child: Text('2 дротика${can2 ? '' : ' (недоступно)'}'),
+          ),
+          FilledButton(
+            onPressed: can3
+                ? () {
+                    Navigator.of(ctx).pop();
+                    _finishLegWithDarts(currentDartsInLeg); // -3 +3
+                  }
+                : null,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            child: const Text('3 дротика'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   void _finishLegWithDarts(int totalDartsInLeg) {
+
     final state = _players[_currentPlayerIndex];
     // Для человека: было +3 в _submitScore, откатываем и ставим правильное
     // Для бота: уже посчитано по +1 за дротик, корректируем

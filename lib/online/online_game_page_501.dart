@@ -27,7 +27,8 @@ class OnlineGamePage501 extends StatefulWidget {
   State<OnlineGamePage501> createState() => _OnlineGamePage501State();
 }
 
-class _OnlineGamePage501State extends State<OnlineGamePage501> {
+class _OnlineGamePage501State extends State<OnlineGamePage501>
+    with WidgetsBindingObserver {
   late RoomState _room;
   StreamSubscription? _subscription;
   String? _winnerMessage;
@@ -58,6 +59,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   int _turnSecondsLeft = 120;
   static const int _turnTimeout = 120;
 
+
   // Диалог turn_timeout
   bool _showTurnTimeoutDialog = false;
   BuildContext? _turnTimeoutDialogContext;
@@ -66,6 +68,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _room = widget.roomState;
     // Ищем себя по userId (если есть), иначе по имени
     if (widget.userId != null && widget.userId!.isNotEmpty) {
@@ -87,10 +90,27 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();
     _turnTimer?.cancel();
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // При блокировке экрана — приостанавливаем таймер
+      _turnTimer?.cancel();
+      _turnTimer = null;
+    } else if (state == AppLifecycleState.resumed) {
+      // При разблокировке — возобновляем таймер
+      if (_turnTimer == null && _room.status != 'finished') {
+        _startTurnTimer();
+      }
+    }
+  }
+
+
 
   void _updateTurn() {
     _isMyTurn = _room.currentPlayerIndex == _myIndex;
@@ -197,13 +217,14 @@ class _OnlineGamePage501State extends State<OnlineGamePage501> {
 
       case GameResumeEvent e:
         // Обновляем состояние игры после переподключения
+        // НЕ сбрасываем таймер — сервер пришлёт ThrowResultEvent с timeLeft
         setState(() {
           _room = e.room;
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer();
         break;
+
 
       case ErrorEvent e:
         _showSnackBar(e.message);
