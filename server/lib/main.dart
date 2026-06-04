@@ -486,10 +486,15 @@ class GameServer {
     }
 
     // Уведомляем обоих игроков
+    final turnDeadline = room.turnStartTime != null
+        ? room.turnStartTime!.millisecondsSinceEpoch + 120000
+        : DateTime.now().millisecondsSinceEpoch + 120000;
     _broadcastToRoom(room, {
       'type': 'game_started',
       'room': room.toJson(),
+      'turnDeadline': turnDeadline,
     });
+
 
     // Уведомляем всех оставшихся pendingPlayers, что игра началась без них
     for (final pending in room.pendingPlayers) {
@@ -595,10 +600,15 @@ class GameServer {
 
     // Если приватная — сразу игра
     if (room.isPrivate) {
+      final turnDeadline = room.turnStartTime != null
+          ? room.turnStartTime!.millisecondsSinceEpoch + 120000
+          : DateTime.now().millisecondsSinceEpoch + 120000;
       _broadcastToRoom(room, {
         'type': 'game_started',
         'room': room.toJson(),
+        'turnDeadline': turnDeadline,
       });
+
     } else {
       // Публичная — уведомляем создателя о заявке
       final creatorWs = _clients[room.creator?.userId];
@@ -676,10 +686,9 @@ class GameServer {
 
     if (room == null) return;
 
-    // Добавляем timeLeft в ответ
-    final now = DateTime.now();
-    final elapsed = now.difference(room.turnStartTime!);
-    result['timeLeft'] = (120 - elapsed.inSeconds).clamp(0, 120);
+    // Добавляем turnDeadline в ответ (абсолютный timestamp)
+    result['turnDeadline'] = room.turnStartTime!.millisecondsSinceEpoch + 120000;
+
 
     if (result['type'] == 'match_won') {
       _saveMatchResult(room);
@@ -750,19 +759,18 @@ class GameServer {
         player.isConnected = true;
       }
 
-      // Вычисляем timeLeft для вернувшегося игрока
-      final now = DateTime.now();
-      final elapsed = room.turnStartTime != null
-          ? now.difference(room.turnStartTime!)
-          : Duration.zero;
-      final timeLeft = (120 - elapsed.inSeconds).clamp(0, 120);
+      // Вычисляем turnDeadline для вернувшегося игрока
+      final turnDeadline = room.turnStartTime != null
+          ? room.turnStartTime!.millisecondsSinceEpoch + 120000
+          : DateTime.now().millisecondsSinceEpoch + 120000;
 
       // Отправляем состояние игры самому вернувшемуся игроку
       _send(ws, {
         'type': 'game_resume',
         'room': room.toJson(),
-        'timeLeft': timeLeft,
+        'turnDeadline': turnDeadline,
       });
+
 
     }
   }
@@ -826,10 +834,11 @@ class GameServer {
           if (opponentWs != null) {
             _send(opponentWs, {
               'type': 'turn_timeout',
-              'timeLeft': 0,
+              'turnDeadline': 0,
               'room': room.toJson(),
             });
           }
+
 
           // Запускаем grace-таймер 60 секунд
           _graceTimers[room.id]?.cancel();
@@ -894,17 +903,16 @@ class GameServer {
 
     final room = _rooms.getPlayerRoom(userId);
     if (room != null && room.status == RoomStatus.playing) {
-      final now = DateTime.now();
-      final elapsed = room.turnStartTime != null
-          ? now.difference(room.turnStartTime!)
-          : Duration.zero;
-      final timeLeft = (120 - elapsed.inSeconds).clamp(0, 120);
+      final turnDeadline = room.turnStartTime != null
+          ? room.turnStartTime!.millisecondsSinceEpoch + 120000
+          : DateTime.now().millisecondsSinceEpoch + 120000;
       _send(ws, {
         'type': 'game_resume',
         'room': room.toJson(),
-        'timeLeft': timeLeft,
+        'turnDeadline': turnDeadline,
       });
     } else {
+
 
       _send(ws, {'type': 'no_active_game'});
     }

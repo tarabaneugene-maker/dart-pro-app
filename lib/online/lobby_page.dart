@@ -83,10 +83,12 @@ class _LobbyPageState extends State<LobbyPage> {
               roomState: e.room,
               playerName: widget.displayName,
               userId: widget.backend.currentUserId,
+              initialTurnDeadline: e.turnDeadline,
             ),
           ),
         );
         break;
+
       case JoinRequestedEvent e:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -104,10 +106,12 @@ class _LobbyPageState extends State<LobbyPage> {
               roomState: e.room,
               playerName: widget.displayName,
               userId: widget.backend.currentUserId,
+              initialTurnDeadline: e.turnDeadline,
             ),
           ),
         );
         break;
+
 
       case NoActiveGameEvent _:
         // Нет активной игры — остаёмся в лобби

@@ -557,11 +557,12 @@ class WebSocketBackend implements BackendService {
         break;
 
       case 'game_started':
-
         _eventController.add(GameStartedEvent(
           RoomState.fromJson(message['room'] as Map<String, dynamic>),
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
         ));
         break;
+
 
       case 'throw_result':
         _eventController.add(ThrowResultEvent(
@@ -573,7 +574,7 @@ class WebSocketBackend implements BackendService {
           lastApproach: (message['lastApproach'] as List)
               .map((e) => e as int?)
               .toList(),
-          timeLeft: (message['timeLeft'] as int?) ?? 120,
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
         ));
         break;
 
@@ -582,23 +583,22 @@ class WebSocketBackend implements BackendService {
           winnerIndex: message['winnerIndex'] as int,
           scores: (message['scores'] as List).cast<int>(),
           currentPlayerIndex: message['currentPlayerIndex'] as int,
-          timeLeft: (message['timeLeft'] as int?) ?? 120,
-        ));
-        break;
-
-      case 'match_won':
-        _eventController.add(MatchWonEvent(
-          winnerIndex: message['winnerIndex'] as int,
-          scores: (message['scores'] as List).cast<int>(),
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
         ));
         break;
 
       case 'turn_timeout':
         _eventController.add(TurnTimeoutEvent(
-          timeLeft: (message['timeLeft'] as int?) ?? 0,
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
         ));
         break;
 
+      case 'game_resume':
+        _eventController.add(GameResumeEvent(
+          RoomState.fromJson(message['room'] as Map<String, dynamic>),
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
+        ));
+        break;
 
       case 'opponent_forfeit':
         _eventController.add(OpponentForfeitEvent(
@@ -608,12 +608,6 @@ class WebSocketBackend implements BackendService {
         ));
         break;
 
-      case 'game_resume':
-        _eventController.add(GameResumeEvent(
-          RoomState.fromJson(message['room'] as Map<String, dynamic>),
-          timeLeft: (message['timeLeft'] as int?) ?? 120,
-        ));
-        break;
 
 
       case 'no_active_game':

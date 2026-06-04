@@ -177,8 +177,10 @@ class PendingPlayersUpdateEvent extends ServerEvent {
 
 class GameStartedEvent extends ServerEvent {
   final RoomState room;
-  GameStartedEvent(this.room);
+  final int turnDeadline;
+  GameStartedEvent(this.room, {this.turnDeadline = 0});
 }
+
 
 class ThrowResultEvent extends ServerEvent {
   final int playerIndex;
@@ -187,7 +189,7 @@ class ThrowResultEvent extends ServerEvent {
   final int currentPlayerIndex;
   final List<int> dartsInLeg;
   final List<int?> lastApproach;
-  final int timeLeft;
+  final int turnDeadline;
 
   ThrowResultEvent({
     required this.playerIndex,
@@ -196,17 +198,19 @@ class ThrowResultEvent extends ServerEvent {
     required this.currentPlayerIndex,
     required this.dartsInLeg,
     required this.lastApproach,
-    this.timeLeft = 120,
+    this.turnDeadline = 0,
   });
 }
+
 
 class LegWonEvent extends ServerEvent {
   final int winnerIndex;
   final List<int> scores;
   final int currentPlayerIndex;
-  final int timeLeft;
-  LegWonEvent({required this.winnerIndex, required this.scores, required this.currentPlayerIndex, this.timeLeft = 120});
+  final int turnDeadline;
+  LegWonEvent({required this.winnerIndex, required this.scores, required this.currentPlayerIndex, this.turnDeadline = 0});
 }
+
 
 class MatchWonEvent extends ServerEvent {
   final int winnerIndex;
@@ -215,9 +219,10 @@ class MatchWonEvent extends ServerEvent {
 }
 
 class TurnTimeoutEvent extends ServerEvent {
-  final int timeLeft;
-  TurnTimeoutEvent({this.timeLeft = 0});
+  final int turnDeadline;
+  TurnTimeoutEvent({this.turnDeadline = 0});
 }
+
 
 
 class OpponentForfeitEvent extends ServerEvent {
@@ -229,9 +234,10 @@ class OpponentForfeitEvent extends ServerEvent {
 
 class GameResumeEvent extends ServerEvent {
   final RoomState room;
-  final int timeLeft;
-  GameResumeEvent(this.room, {this.timeLeft = 120});
+  final int turnDeadline;
+  GameResumeEvent(this.room, {this.turnDeadline = 0});
 }
+
 
 
 class NoActiveGameEvent extends ServerEvent {}

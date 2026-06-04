@@ -66,6 +66,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 roomState: e.room,
                 playerName: widget.playerName,
                 userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
               ),
             ),
           );
@@ -74,6 +75,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
           _showGameStartedWithoutUs();
         }
         break;
+
 
       case JoinRejectedEvent e:
         setState(() {

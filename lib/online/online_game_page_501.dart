@@ -14,6 +14,7 @@ class OnlineGamePage501 extends StatefulWidget {
   final RoomState roomState;
   final String playerName;
   final String? userId;
+  final int initialTurnDeadline;
 
   const OnlineGamePage501({
     super.key,
@@ -21,7 +22,9 @@ class OnlineGamePage501 extends StatefulWidget {
     required this.roomState,
     required this.playerName,
     this.userId,
+    this.initialTurnDeadline = 0,
   });
+
 
   @override
   State<OnlineGamePage501> createState() => _OnlineGamePage501State();
@@ -83,9 +86,13 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
     }
     if (_myIndex == -1) _myIndex = 0;
     _updateTurn();
-    // Таймер запускается из _handleEvent при получении первого события
+    // Запускаем таймер с initialTurnDeadline (если есть)
+    if (widget.initialTurnDeadline > 0) {
+      _startTurnTimer(turnDeadline: widget.initialTurnDeadline);
+    }
 
     _subscription = widget.backend.events.listen(_handleEvent);
+
 
   }
 
@@ -117,9 +124,13 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
     _isMyTurn = _room.currentPlayerIndex == _myIndex;
   }
 
-  void _startTurnTimer({int? timeLeft}) {
+  void _startTurnTimer({int? turnDeadline}) {
     _turnTimer?.cancel();
-    _turnSecondsLeft = timeLeft ?? _turnTimeout;
+    if (turnDeadline != null && turnDeadline > 0) {
+      _turnSecondsLeft = ((turnDeadline - DateTime.now().millisecondsSinceEpoch) / 1000).ceil().clamp(0, _turnTimeout);
+    } else {
+      _turnSecondsLeft = _turnTimeout;
+    }
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -133,6 +144,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
       }
     });
   }
+
 
   void _handleEvent(ServerEvent event) {
     if (!mounted) return;
@@ -155,7 +167,7 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer(timeLeft: e.timeLeft);
+        _startTurnTimer(turnDeadline: e.turnDeadline);
         break;
 
       case LegWonEvent e:
@@ -174,7 +186,8 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer(timeLeft: e.timeLeft);
+        _startTurnTimer(turnDeadline: e.turnDeadline);
+
         _showLegWonDialog(e.winnerIndex);
         break;
 
@@ -202,9 +215,10 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
         // Соперник не ходит 2+ минуты — показываем диалог
         if (!_showTurnTimeoutDialog && !_turnTimeoutForfeitRequested) {
           _showTurnTimeoutDialog = true;
-          _showTurnTimeoutDialogWidget(e.timeLeft);
+          _showTurnTimeoutDialogWidget(e.turnDeadline);
         }
         break;
+
 
       case OpponentForfeitEvent e:
         _turnTimer?.cancel();
@@ -218,14 +232,15 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
 
       case GameResumeEvent e:
         // Обновляем состояние игры после переподключения
-        // Запускаем таймер с timeLeft от сервера
+        // Запускаем таймер с turnDeadline от сервера
         setState(() {
           _room = e.room;
           _updateTurn();
           _resetInput();
         });
-        _startTurnTimer(timeLeft: e.timeLeft);
+        _startTurnTimer(turnDeadline: e.turnDeadline);
         break;
+
 
 
 
@@ -250,7 +265,8 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
     });
   }
 
-  void _showTurnTimeoutDialogWidget(int timeLeft) {
+  void _showTurnTimeoutDialogWidget(int turnDeadline) {
+
     if (!mounted) return;
     showDialog(
       context: context,

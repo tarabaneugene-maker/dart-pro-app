@@ -397,10 +397,12 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
               roomState: e.room,
               playerName: widget.playerName,
               userId: widget.backend.currentUserId,
+              initialTurnDeadline: e.turnDeadline,
             ),
           ),
         );
         break;
+
       case ErrorEvent e:
         setState(() => _error = e.message);
         break;
