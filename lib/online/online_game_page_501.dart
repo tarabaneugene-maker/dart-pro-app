@@ -571,8 +571,9 @@ class _OnlineGamePage501State extends State<OnlineGamePage501>
   // ===================================================================
 
   void _submitThrow(int score) {
-    if (!_isMyTurn || score <= 0) return;
+    if (!_isMyTurn || score < 0) return;
     if (!isValidThreeDartScore(score)) {
+
       _showSnackBar('Невозможная сумма ($score) для трёх дротиков');
       return;
     }
