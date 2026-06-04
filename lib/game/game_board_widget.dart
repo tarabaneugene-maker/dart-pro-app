@@ -199,16 +199,7 @@ class GameScoreBoard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          // Average
-          if (player.average != null)
-            Text(
-              'ср: ${player.average!.toStringAsFixed(1)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          const SizedBox(height: 8),
-          // Счёт (крупно, по центру колонки) + результаты бросков (слева внизу, поверх)
+          // Счёт (крупно, по центру колонки) + avg + результаты бросков (поверх)
           Expanded(
             child: Stack(
               children: [
@@ -223,6 +214,18 @@ class GameScoreBoard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Average — сверху слева, поверх счёта, не влияет на layout
+                if (player.average != null)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Text(
+                      'ср: ${player.average!.toStringAsFixed(1)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 // Результаты дротиков последнего подхода — слева внизу, поверх счёта
                 if (player.lastDartResults.isNotEmpty)
                   Positioned(
@@ -249,6 +252,7 @@ class GameScoreBoard extends StatelessWidget {
               ],
             ),
           ),
+
           // Нижняя строка: последний подход слева, дротики справа
           Row(
             children: [
