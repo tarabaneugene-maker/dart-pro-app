@@ -128,7 +128,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
   late CricketVariant _variant;
 
   bool _isTripleMode = false;
-  bool _isDoubleMode = false;
 
   /// hits за текущий подход
   final Map<int, int> _currentTurnHits = {};
@@ -155,14 +154,9 @@ class _CricketGamePageState extends State<CricketGamePage> {
     _currentTurnHits.clear();
     _turnHistory.clear();
     _isTripleMode = false;
-    _isDoubleMode = false;
   }
 
-  int _getHitCount() {
-    if (_isTripleMode) return 3;
-    if (_isDoubleMode) return 2;
-    return 1;
-  }
+  int _getHitCount() => _isTripleMode ? 3 : 1;
 
   int _sectorMultiplier(int sector) => sector == 25 ? 2 : 3;
 
@@ -200,14 +194,24 @@ class _CricketGamePageState extends State<CricketGamePage> {
       _isTripleMode = false;
     }
 
-    final hits = _getHitCount();
+    final player = _players[_currentPlayerIndex];
+    int hits = _getHitCount();
+
+    // БАГ-ФИКС: если игрок ещё не закрыл сектор, капаем hits до 3 - currentHits
+    if (!player.isSectorClosed(sector)) {
+      final currentHits = player.hitsPerSector[sector] ?? 0;
+      final needed = 3 - currentHits;
+      if (hits > needed) {
+        hits = needed;
+      }
+    }
+
     if (_wouldExceedSectorLimit(sector, hits)) return;
 
     _currentTurnHits[sector] = (_currentTurnHits[sector] ?? 0) + hits;
     _turnHistory.add(_TurnHitEntry(sector: sector, hits: hits));
 
     _isTripleMode = false;
-    _isDoubleMode = false;
 
     setState(() {});
   }
@@ -233,7 +237,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
     final snapshot = _opponentSnapshot!;
     final opponent = _players[snapshot.playerIndex];
 
-    // Восстанавливаем состояние соперника
     opponent.hitsPerSector
         ..clear()
         ..addAll(snapshot.hitsPerSector);
@@ -246,7 +249,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
     opponent.totalTurns = snapshot.totalTurns;
     opponent.lastTurnSummary = snapshot.lastTurnSummary;
 
-    // Переключаем ход обратно на соперника
     setState(() {
       _previousPlayerIndex = _currentPlayerIndex;
       _currentPlayerIndex = snapshot.playerIndex;
@@ -280,7 +282,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
         final sector = entry.key;
         final hits = entry.value;
         final sectorLabel = sector == 25 ? 'Bull' : '$sector';
-        parts.add('$sectorLabel - $hits');
+        parts.add('$sectorLabel-$hits');
       }
       player.lastTurnSummary = parts.join(' | ');
 
@@ -295,9 +297,13 @@ class _CricketGamePageState extends State<CricketGamePage> {
 
         player.addHits(sector, hits);
 
+        // БАГ-ФИКС: очки начисляются только если соперник НЕ закрыл сектор
         if (_variant == CricketVariant.american && hitsForPoints > 0) {
-          final sectorValue = sector == 25 ? 25 : sector;
-          player.addPoints(sector, sectorValue * hitsForPoints);
+          final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+          if (!opponent.isSectorClosed(sector)) {
+            final sectorValue = sector == 25 ? 25 : sector;
+            player.addPoints(sector, sectorValue * hitsForPoints);
+          }
         }
       }
 
@@ -306,7 +312,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
       player.lastTurnSummary = '0';
     }
 
-    // Сохраняем снапшот соперника перед сменой хода
     _saveOpponentSnapshot();
 
     setState(() {
@@ -410,6 +415,13 @@ class _CricketGamePageState extends State<CricketGamePage> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.undo_rounded),
+              onPressed: _opponentSnapshot != null ? _onUndoOpponent : null,
+              tooltip: 'Откатить ход соперника',
+            ),
+          ],
         ),
         body: CricketBoardWidget(
           state: boardState,
@@ -417,22 +429,12 @@ class _CricketGamePageState extends State<CricketGamePage> {
           onTripleTap: () {
             setState(() {
               _isTripleMode = !_isTripleMode;
-              _isDoubleMode = false;
-            });
-          },
-          onDoubleTap: () {
-            setState(() {
-              _isDoubleMode = !_isDoubleMode;
-              _isTripleMode = false;
             });
           },
           onOkTap: _onOkTap,
           onEraseLastHit: _onEraseLastHit,
-          onUndoOpponent: _onUndoOpponent,
-          canUndoOpponent: _opponentSnapshot != null,
           currentTurnHits: _currentTurnHits,
           isTripleMode: _isTripleMode,
-          isDoubleMode: _isDoubleMode,
         ),
       ),
     );
