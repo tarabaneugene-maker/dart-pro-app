@@ -73,6 +73,9 @@ class CricketBoardWidget extends StatelessWidget {
   final void Function()? onTripleTap;
   final void Function()? onDoubleTap;
   final void Function()? onOkTap;
+  final void Function()? onEraseLastHit;
+  final void Function()? onUndoOpponent;
+  final bool canUndoOpponent;
 
   /// Хиты за текущий подход (для визуализации полосок и h/t)
   final Map<int, int> currentTurnHits;
@@ -87,6 +90,9 @@ class CricketBoardWidget extends StatelessWidget {
     this.onTripleTap,
     this.onDoubleTap,
     this.onOkTap,
+    this.onEraseLastHit,
+    this.onUndoOpponent,
+    this.canUndoOpponent = false,
     this.currentTurnHits = const {},
     this.isTripleMode = false,
     this.isDoubleMode = false,
@@ -119,7 +125,7 @@ class CricketBoardWidget extends StatelessWidget {
     final playerCount = state.players.length;
 
     return Container(
-      height: 72,
+      height: 90, // +25%
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
@@ -128,9 +134,9 @@ class CricketBoardWidget extends StatelessWidget {
         children: [
           Expanded(child: _buildPlayerCard(theme, 0)),
           if (playerCount >= 2) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             _buildScoreCenter(theme),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             Expanded(child: _buildPlayerCard(theme, 1)),
           ],
         ],
@@ -142,22 +148,43 @@ class CricketBoardWidget extends StatelessWidget {
     final p0 = state.players[0];
     final p1 = state.players[1];
     return SizedBox(
-      width: 56,
+      width: 64,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Sets — крупно
           Text(
-            '${p0.setsWon}S - ${p1.setsWon}S',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
+            'Sets',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 10,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
-            '${p0.legsWon}L - ${p1.legsWon}L',
-            style: theme.textTheme.bodySmall?.copyWith(
+            '${p0.setsWon} — ${p1.setsWon}',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Legs — чуть меньше
+          Text(
+            'Legs',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${p0.legsWon} — ${p1.legsWon}',
+            style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 16,
             ),
           ),
         ],
@@ -171,8 +198,8 @@ class CricketBoardWidget extends StatelessWidget {
     final isPrevious = playerIndex == state.previousPlayerIndex;
 
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      height: 80, // +25%
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: isActive ? Colors.green.shade900 : Colors.grey.shade900,
         borderRadius: BorderRadius.circular(4),
@@ -180,6 +207,7 @@ class CricketBoardWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Имя + бейджи
           Row(
             children: [
               Expanded(
@@ -187,35 +215,37 @@ class CricketBoardWidget extends StatelessWidget {
                   p.name,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 13,
+                    fontSize: 14,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               _buildBadge(theme, '${p.setsWon}S',
                   theme.colorScheme.tertiaryContainer),
-              const SizedBox(width: 3),
+              const SizedBox(width: 4),
               _buildBadge(theme, '${p.legsWon}L',
                   theme.colorScheme.secondaryContainer),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
+          // Average
           Text(
             p.avgHitsPerTurn != null
                 ? 'ср: ${p.avgHitsPerTurn!.toStringAsFixed(1)} h/t'
                 : 'ср: - h/t',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
+          // Last turn summary (только у завершившего ход)
           if (!isActive && isPrevious && p.lastTurnSummary != null)
             Text(
               p.lastTurnSummary!,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w600,
-                fontSize: 11,
+                fontSize: 12,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -226,7 +256,7 @@ class CricketBoardWidget extends StatelessWidget {
 
   Widget _buildBadge(ThemeData theme, String text, Color bgColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(3),
@@ -235,7 +265,7 @@ class CricketBoardWidget extends StatelessWidget {
         text,
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.bold,
-          fontSize: 10,
+          fontSize: 11,
         ),
       ),
     );
@@ -250,7 +280,7 @@ class CricketBoardWidget extends StatelessWidget {
     final p1 = state.players.length >= 2 ? state.players[1] : null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
       ),
@@ -258,22 +288,31 @@ class CricketBoardWidget extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            '${p0.name}: ${p0.totalPoints} pts',
-            style: theme.textTheme.bodySmall?.copyWith(
+            '${p0.totalPoints}',
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: p0.isActive ? Colors.green.shade300 : Colors.white70,
+              fontSize: 18,
             ),
           ),
-          if (p1 != null) ...[
-            const SizedBox(width: 24),
+          const SizedBox(width: 12),
+          Text(
+            ':',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: Colors.white54,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (p1 != null)
             Text(
-              '${p1.name}: ${p1.totalPoints} pts',
-              style: theme.textTheme.bodySmall?.copyWith(
+              '${p1.totalPoints}',
+              style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: p1.isActive ? Colors.green.shade300 : Colors.white70,
+                fontSize: 18,
               ),
             ),
-          ],
         ],
       ),
     );
@@ -309,7 +348,7 @@ class CricketBoardWidget extends StatelessWidget {
     );
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1),
+      margin: const EdgeInsets.symmetric(vertical: 15), // ~30% от 52
       height: 52,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
@@ -524,77 +563,126 @@ class CricketBoardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: isTripleMode
-                  ? FilledButton(
-                      onPressed: onTripleTap,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
+          // Row 1: TRIPLE | DOUBLE
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: isTripleMode
+                      ? FilledButton(
+                          onPressed: onTripleTap,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          child: const Text('TRIPLE',
+                              style: TextStyle(fontSize: 14)),
+                        )
+                      : OutlinedButton(
+                          onPressed: onTripleTap,
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          child: const Text('TRIPLE',
+                              style: TextStyle(fontSize: 14)),
                         ),
-                      ),
-                      child: const Text('TRIPLE',
-                          style: TextStyle(fontSize: 14)),
-                    )
-                  : OutlinedButton(
-                      onPressed: onTripleTap,
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: isDoubleMode
+                      ? FilledButton(
+                          onPressed: onDoubleTap,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          child: const Text('DOUBLE',
+                              style: TextStyle(fontSize: 14)),
+                        )
+                      : OutlinedButton(
+                          onPressed: onDoubleTap,
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          child: const Text('DOUBLE',
+                              style: TextStyle(fontSize: 14)),
                         ),
-                      ),
-                      child: const Text('TRIPLE',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-            ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: isDoubleMode
-                  ? FilledButton(
-                      onPressed: onDoubleTap,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+          const SizedBox(height: 8),
+          // Row 2: [НАЗАД] [ИСПРАВИТЬ] | [ОК]
+          Row(
+            children: [
+              // НАЗАД (откат хода соперника)
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: canUndoOpponent ? onUndoOpponent : null,
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text('DOUBLE',
-                          style: TextStyle(fontSize: 14)),
-                    )
-                  : OutlinedButton(
-                      onPressed: onDoubleTap,
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: const Text('DOUBLE',
-                          style: TextStyle(fontSize: 14)),
                     ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: FilledButton(
-                onPressed: onOkTap,
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    icon: const Icon(Icons.undo, size: 16),
+                    label: const Text('НАЗАД',
+                        style: TextStyle(fontSize: 12)),
                   ),
                 ),
-                child: const Text('OK', style: TextStyle(fontSize: 14)),
               ),
-            ),
+              const SizedBox(width: 6),
+              // ИСПРАВИТЬ (стереть последний хит)
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: onEraseLastHit,
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    icon: const Icon(Icons.backspace_outlined, size: 16),
+                    label: const Text('ИСПРАВИТЬ',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // ОК — половина ширины (2 Expanded)
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 44,
+                  child: FilledButton(
+                    onPressed: onOkTap,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    child: const Text('OK', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

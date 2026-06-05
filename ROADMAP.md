@@ -16,7 +16,7 @@ lib/
 ├── data/checkouts.dart             # Таблица чекаутов (2–170)
 ├── game/
 │   ├── game_board_widget.dart      # Табло 501 + панель ввода (сумма/per-dart)
-│   ├── cricket_board_widget.dart   # Доска Cricket (сектора, маркеры, ввод Triple/Double/OK)
+│   ├── cricket_board_widget.dart   # Доска Cricket (сектора, полоски, h/t, Triple/Double/OK)
 │   ├── game_page_501.dart          # Локальная игра 501
 │   ├── cricket_game_page.dart      # Локальная игра Cricket (Classic / American)
 │   ├── game_setup_page.dart        # Настройка 501
@@ -44,7 +44,7 @@ server/lib/
 - **Онлайн: reconnect-диалог** — не показывает форфейт, если соперник вернулся
 - **Онлайн: per-dart режим ввода** — переключение сумма/по-дротику через ⚙️
 - **Онлайн: turn timeout** — turnDeadline (абсолютный timestamp), таймер на клиенте, диалог форфейта
-- **Cricket**: Classic/American, сектора 20→Bull, маркеры `/` `X` `■`, Triple/Double/OK, подсветка, подсчёт очков (American), проверка победы, keyboard 1-20+Bull, last approach, average %
+- **Cricket**: Classic/American, сектора 20→Bull, полоски (stripes) вместо маркеров / X ■, Triple/Double/OK, h/t колонка (хиты за подход), лимит 3 сектора за подход (ceil(hits/mult)), розовый фон для чужих закрытых секторов, подсчёт очков (American), totalPoints bar, проверка победы, last approach, avg h/t, AppBar с условиями
 - **Тренировки**: Сектор (счётчик попаданий), Around the Clock (выбор Single/Double/Triple), Classic 1→20→Bull
 - **Сервер**: SQLite WAL, rate limit (30/10s), graceful shutdown, health check, Docker multi-stage
 - **Деплой**: VPS + Docker + Caddy (HTTPS авто), скрипт setup.sh, deploy_vps.ps1
@@ -60,7 +60,7 @@ server/lib/
 | **Онлайн: Double Out проверка** | — | На сервере нет проверки double out |
 | **Cricket: боты** | — | Нет ботов для Cricket |
 | **Cricket: онлайн** | — | Только локальная игра |
-| **Cricket: сеты/леги** | `lib/game/cricket_game_page.dart` | Не реализованы — только леги |
+| **Cricket: сеты/леги** | `lib/game/cricket_game_page.dart` | Не реализованы — только леги (нет увеличения legsWon/setsWon) |
 | **Checkouts 41–59** | `lib/data/checkouts.dart` | Только 60–170 |
 | **Статистика / Настройки** | `lib/widgets/stub_page.dart` | Заглушка |
 | **Баг: вылезающие броски 501** | `lib/game/game_board_widget.dart` | Last dart results перекрывают счёт |
@@ -82,4 +82,4 @@ curl http://192.144.13.217:9090/health
 
 ---
 
-*04.06.2026*
+*05.06.2026*

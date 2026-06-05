@@ -21,7 +21,7 @@ class _CricketPlayerState {
   int setsWon;
   int totalDarts;
   int totalHits;
-  int totalTurns; // количество подходов
+  int totalTurns;
   int totalPoints;
 
   /// Строка последнего подхода: "20 - 6 | 19 - 3"
@@ -46,7 +46,6 @@ class _CricketPlayerState {
 
   bool isSectorClosed(int sector) => (hitsPerSector[sector] ?? 0) >= 3;
 
-  /// Среднее hits за подход
   double? get avgHitsPerTurn {
     if (totalTurns == 0) return null;
     return totalHits / totalTurns;
@@ -59,10 +58,23 @@ class _CricketPlayerState {
     totalDarts += count;
   }
 
+  void removeHits(int sector, int count) {
+    final current = hitsPerSector[sector] ?? 0;
+    hitsPerSector[sector] = (current - count).clamp(0, 999);
+    totalHits = (totalHits - count).clamp(0, 9999);
+    totalDarts = (totalDarts - count).clamp(0, 9999);
+  }
+
   void addPoints(int sector, int points) {
     final current = pointsPerSector[sector] ?? 0;
     pointsPerSector[sector] = current + points;
     totalPoints += points;
+  }
+
+  void removePoints(int sector, int points) {
+    final current = pointsPerSector[sector] ?? 0;
+    pointsPerSector[sector] = (current - points).clamp(0, 9999);
+    totalPoints = (totalPoints - points).clamp(0, 99999);
   }
 
   void resetForNewLeg() {
@@ -112,15 +124,20 @@ class CricketGamePage extends StatefulWidget {
 class _CricketGamePageState extends State<CricketGamePage> {
   late List<_CricketPlayerState> _players;
   late int _currentPlayerIndex;
-  int _previousPlayerIndex = -1; // кто только что бросил
+  int _previousPlayerIndex = -1;
   late CricketVariant _variant;
 
-  // Состояние ввода
   bool _isTripleMode = false;
   bool _isDoubleMode = false;
 
-  /// hits за текущий подход (для визуализации полосок)
+  /// hits за текущий подход
   final Map<int, int> _currentTurnHits = {};
+
+  /// История тапов в текущем подходе: sector + hits
+  final List<_TurnHitEntry> _turnHistory = [];
+
+  /// Снапшот состояния соперника перед его ходом (для undo)
+  _PlayerSnapshot? _opponentSnapshot;
 
   static const int _maxDartsPerTurn = 3;
 
@@ -136,6 +153,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
 
   void _resetTurnInput() {
     _currentTurnHits.clear();
+    _turnHistory.clear();
     _isTripleMode = false;
     _isDoubleMode = false;
   }
@@ -146,10 +164,8 @@ class _CricketGamePageState extends State<CricketGamePage> {
     return 1;
   }
 
-  /// Множитель для сектора: для Bull (25) максимум Double, поэтому множитель 2
   int _sectorMultiplier(int sector) => sector == 25 ? 2 : 3;
 
-  /// Подсчитывает, сколько "виртуальных дротиков" уже занято
   int _usedVirtualDarts() {
     int total = 0;
     for (final entry in _currentTurnHits.entries) {
@@ -161,16 +177,13 @@ class _CricketGamePageState extends State<CricketGamePage> {
     return total;
   }
 
-  /// Проверяет, не превысит ли добавление hitsToAdd в sector лимит в 3 дротика
   bool _wouldExceedSectorLimit(int sector, int hitsToAdd) {
     final currentHits = _currentTurnHits[sector] ?? 0;
     final newHits = currentHits + hitsToAdd;
     final mult = _sectorMultiplier(sector);
     final newVirtual = (newHits / mult).ceil();
-
     final otherVirtual = _usedVirtualDarts() -
         (currentHits > 0 ? (currentHits / mult).ceil() : 0);
-
     return otherVirtual + newVirtual > _maxDartsPerTurn;
   }
 
@@ -183,7 +196,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
   void _onSectorTap(int sector) {
     if (!_canThrowIntoSector(sector)) return;
 
-    // Triple Bull не существует — сбрасываем на Single
     if (_isTripleMode && sector == 25) {
       _isTripleMode = false;
     }
@@ -192,6 +204,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
     if (_wouldExceedSectorLimit(sector, hits)) return;
 
     _currentTurnHits[sector] = (_currentTurnHits[sector] ?? 0) + hits;
+    _turnHistory.add(_TurnHitEntry(sector: sector, hits: hits));
 
     _isTripleMode = false;
     _isDoubleMode = false;
@@ -199,11 +212,69 @@ class _CricketGamePageState extends State<CricketGamePage> {
     setState(() {});
   }
 
+  void _onEraseLastHit() {
+    if (_turnHistory.isEmpty) return;
+
+    final last = _turnHistory.removeLast();
+    final current = _currentTurnHits[last.sector] ?? 0;
+    final newHits = current - last.hits;
+    if (newHits <= 0) {
+      _currentTurnHits.remove(last.sector);
+    } else {
+      _currentTurnHits[last.sector] = newHits;
+    }
+
+    setState(() {});
+  }
+
+  void _onUndoOpponent() {
+    if (_opponentSnapshot == null) return;
+
+    final snapshot = _opponentSnapshot!;
+    final opponent = _players[snapshot.playerIndex];
+
+    // Восстанавливаем состояние соперника
+    opponent.hitsPerSector
+        ..clear()
+        ..addAll(snapshot.hitsPerSector);
+    opponent.pointsPerSector
+        ..clear()
+        ..addAll(snapshot.pointsPerSector);
+    opponent.totalHits = snapshot.totalHits;
+    opponent.totalDarts = snapshot.totalDarts;
+    opponent.totalPoints = snapshot.totalPoints;
+    opponent.totalTurns = snapshot.totalTurns;
+    opponent.lastTurnSummary = snapshot.lastTurnSummary;
+
+    // Переключаем ход обратно на соперника
+    setState(() {
+      _previousPlayerIndex = _currentPlayerIndex;
+      _currentPlayerIndex = snapshot.playerIndex;
+      _resetTurnInput();
+    });
+
+    _opponentSnapshot = null;
+  }
+
+  void _saveOpponentSnapshot() {
+    final oppIndex = (_currentPlayerIndex + 1) % _players.length;
+    final opp = _players[oppIndex];
+    _opponentSnapshot = _PlayerSnapshot(
+      playerIndex: oppIndex,
+      hitsPerSector: Map.from(opp.hitsPerSector),
+      pointsPerSector: Map.from(opp.pointsPerSector),
+      totalHits: opp.totalHits,
+      totalDarts: opp.totalDarts,
+      totalPoints: opp.totalPoints,
+      totalTurns: opp.totalTurns,
+      lastTurnSummary: opp.lastTurnSummary,
+    );
+  }
+
   void _onOkTap() {
     final player = _players[_currentPlayerIndex];
 
     if (_currentTurnHits.isNotEmpty) {
-      // Формируем строку последнего подхода
       final parts = <String>[];
       for (final entry in _currentTurnHits.entries) {
         final sector = entry.key;
@@ -213,7 +284,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
       }
       player.lastTurnSummary = parts.join(' | ');
 
-      // Применяем hits к состоянию игрока
       for (final entry in _currentTurnHits.entries) {
         final sector = entry.key;
         final hits = entry.value;
@@ -231,14 +301,14 @@ class _CricketGamePageState extends State<CricketGamePage> {
         }
       }
 
-      // Увеличиваем счётчик подходов
       player.totalTurns++;
     } else {
-      // Промах — lastTurnSummary = "0"
       player.lastTurnSummary = '0';
     }
 
-    // Переход хода
+    // Сохраняем снапшот соперника перед сменой хода
+    _saveOpponentSnapshot();
+
     setState(() {
       _previousPlayerIndex = _currentPlayerIndex;
       _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
@@ -301,6 +371,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
       }
       _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
       _previousPlayerIndex = -1;
+      _opponentSnapshot = null;
       _resetTurnInput();
     });
   }
@@ -356,6 +427,9 @@ class _CricketGamePageState extends State<CricketGamePage> {
             });
           },
           onOkTap: _onOkTap,
+          onEraseLastHit: _onEraseLastHit,
+          onUndoOpponent: _onUndoOpponent,
+          canUndoOpponent: _opponentSnapshot != null,
           currentTurnHits: _currentTurnHits,
           isTripleMode: _isTripleMode,
           isDoubleMode: _isDoubleMode,
@@ -363,4 +437,36 @@ class _CricketGamePageState extends State<CricketGamePage> {
       ),
     );
   }
+}
+
+// ===================================================================
+// ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ
+// ===================================================================
+
+class _TurnHitEntry {
+  final int sector;
+  final int hits;
+  const _TurnHitEntry({required this.sector, required this.hits});
+}
+
+class _PlayerSnapshot {
+  final int playerIndex;
+  final Map<int, int> hitsPerSector;
+  final Map<int, int> pointsPerSector;
+  final int totalHits;
+  final int totalDarts;
+  final int totalPoints;
+  final int totalTurns;
+  final String? lastTurnSummary;
+
+  const _PlayerSnapshot({
+    required this.playerIndex,
+    required this.hitsPerSector,
+    required this.pointsPerSector,
+    required this.totalHits,
+    required this.totalDarts,
+    required this.totalPoints,
+    required this.totalTurns,
+    this.lastTurnSummary,
+  });
 }
