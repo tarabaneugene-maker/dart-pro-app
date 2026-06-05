@@ -112,13 +112,14 @@ class CricketGamePage extends StatefulWidget {
 class _CricketGamePageState extends State<CricketGamePage> {
   late List<_CricketPlayerState> _players;
   late int _currentPlayerIndex;
+  int _previousPlayerIndex = -1; // кто только что бросил
   late CricketVariant _variant;
 
   // Состояние ввода
   bool _isTripleMode = false;
   bool _isDoubleMode = false;
 
-  /// hits за текущий подход (для колонки h/t)
+  /// hits за текущий подход (для визуализации полосок)
   final Map<int, int> _currentTurnHits = {};
 
   /// Сколько дротиков использовано в текущем подходе
@@ -175,49 +176,52 @@ class _CricketGamePageState extends State<CricketGamePage> {
     _isDoubleMode = false;
 
     setState(() {});
-
-    if (_dartsUsed >= _maxDartsPerTurn) {
-      _onOkTap();
-    }
+    // Ход НЕ переходит автоматически — только по OK
   }
 
   void _onOkTap() {
-    if (_dartsUsed == 0) return;
-
+    // OK без ввода — всё равно переход хода (промахнулся)
     final player = _players[_currentPlayerIndex];
 
-    // Формируем строку последнего подхода
-    final parts = <String>[];
-    for (final entry in _currentTurnHits.entries) {
-      final sector = entry.key;
-      final hits = entry.value;
-      final sectorLabel = sector == 25 ? 'Bull' : '$sector';
-      parts.add('$sectorLabel - $hits');
-    }
-    player.lastTurnSummary = parts.join(' | ');
-
-    // Применяем hits к состоянию игрока
-    for (final entry in _currentTurnHits.entries) {
-      final sector = entry.key;
-      final hits = entry.value;
-
-      final currentHits = player.hitsPerSector[sector] ?? 0;
-      final hitsToClose = (currentHits < 3) ? (3 - currentHits).clamp(0, hits) : 0;
-      final hitsForPoints = hits - hitsToClose;
-
-      player.addHits(sector, hits);
-
-      if (_variant == CricketVariant.american && hitsForPoints > 0) {
-        final sectorValue = sector == 25 ? 25 : sector;
-        player.addPoints(sector, sectorValue * hitsForPoints);
+    if (_dartsUsed > 0) {
+      // Формируем строку последнего подхода
+      final parts = <String>[];
+      for (final entry in _currentTurnHits.entries) {
+        final sector = entry.key;
+        final hits = entry.value;
+        final sectorLabel = sector == 25 ? 'Bull' : '$sector';
+        parts.add('$sectorLabel - $hits');
       }
-    }
+      player.lastTurnSummary = parts.join(' | ');
 
-    // Увеличиваем счётчик подходов
-    player.totalTurns++;
+      // Применяем hits к состоянию игрока
+      for (final entry in _currentTurnHits.entries) {
+        final sector = entry.key;
+        final hits = entry.value;
+
+        final currentHits = player.hitsPerSector[sector] ?? 0;
+        final hitsToClose =
+            (currentHits < 3) ? (3 - currentHits).clamp(0, hits) : 0;
+        final hitsForPoints = hits - hitsToClose;
+
+        player.addHits(sector, hits);
+
+        if (_variant == CricketVariant.american && hitsForPoints > 0) {
+          final sectorValue = sector == 25 ? 25 : sector;
+          player.addPoints(sector, sectorValue * hitsForPoints);
+        }
+      }
+
+      // Увеличиваем счётчик подходов
+      player.totalTurns++;
+    } else {
+      // Промах — lastTurnSummary = "0"
+      player.lastTurnSummary = '0';
+    }
 
     // Переход хода
     setState(() {
+      _previousPlayerIndex = _currentPlayerIndex;
       _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
       _resetTurnInput();
     });
@@ -277,6 +281,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
         p.resetForNewLeg();
       }
       _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
+      _previousPlayerIndex = -1;
       _resetTurnInput();
     });
   }
@@ -287,6 +292,11 @@ class _CricketGamePageState extends State<CricketGamePage> {
 
   @override
   Widget build(BuildContext context) {
+    final sets = widget.settings.sets;
+    final legs = widget.settings.legs;
+    final variantLabel =
+        _variant == CricketVariant.classic ? 'Classic' : 'American';
+
     final boardState = CricketBoardState(
       players: _players
           .asMap()
@@ -294,18 +304,17 @@ class _CricketGamePageState extends State<CricketGamePage> {
           .map((e) => e.value.toBoardInfo(isActive: e.key == _currentPlayerIndex))
           .toList(),
       currentPlayerIndex: _currentPlayerIndex,
+      previousPlayerIndex: _previousPlayerIndex,
       variant: _variant,
-      sets: widget.settings.sets,
-      legs: widget.settings.legs,
+      sets: sets,
+      legs: legs,
     );
 
     return PopScope(
       canPop: true,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            _variant == CricketVariant.classic ? 'Classic Cricket' : 'American Cricket',
-          ),
+          title: Text('$variantLabel • $sets set${sets > 1 ? 's' : ''}, $legs leg${legs > 1 ? 's' : ''}'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
