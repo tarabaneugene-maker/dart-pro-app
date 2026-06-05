@@ -122,9 +122,6 @@ class _CricketGamePageState extends State<CricketGamePage> {
   /// hits за текущий подход (для визуализации полосок)
   final Map<int, int> _currentTurnHits = {};
 
-  /// Сколько дротиков использовано в текущем подходе
-  int _dartsUsed = 0;
-
   static const int _maxDartsPerTurn = 3;
 
   @override
@@ -139,18 +136,8 @@ class _CricketGamePageState extends State<CricketGamePage> {
 
   void _resetTurnInput() {
     _currentTurnHits.clear();
-    _dartsUsed = 0;
     _isTripleMode = false;
     _isDoubleMode = false;
-  }
-
-  bool get _canThrow => _dartsUsed < _maxDartsPerTurn;
-
-  bool _canThrowIntoSector(int sector) {
-    if (!_canThrow) return false;
-    final allClosed = _players.every((p) => p.isSectorClosed(sector));
-    if (allClosed) return false;
-    return true;
   }
 
   int _getHitCount() {
@@ -159,31 +146,63 @@ class _CricketGamePageState extends State<CricketGamePage> {
     return 1;
   }
 
-  bool _wouldExceedDartLimit(int hitsToAdd) {
-    return _dartsUsed + hitsToAdd > _maxDartsPerTurn;
+  /// Множитель для сектора: для Bull (25) максимум Double, поэтому множитель 2
+  int _sectorMultiplier(int sector) => sector == 25 ? 2 : 3;
+
+  /// Подсчитывает, сколько "виртуальных дротиков" уже занято
+  int _usedVirtualDarts() {
+    int total = 0;
+    for (final entry in _currentTurnHits.entries) {
+      final sector = entry.key;
+      final hits = entry.value;
+      final mult = _sectorMultiplier(sector);
+      total += (hits / mult).ceil();
+    }
+    return total;
+  }
+
+  /// Проверяет, не превысит ли добавление hitsToAdd в sector лимит в 3 дротика
+  bool _wouldExceedSectorLimit(int sector, int hitsToAdd) {
+    final currentHits = _currentTurnHits[sector] ?? 0;
+    final newHits = currentHits + hitsToAdd;
+    final mult = _sectorMultiplier(sector);
+    final newVirtual = (newHits / mult).ceil();
+
+    final otherVirtual = _usedVirtualDarts() -
+        (currentHits > 0 ? (currentHits / mult).ceil() : 0);
+
+    return otherVirtual + newVirtual > _maxDartsPerTurn;
+  }
+
+  bool _canThrowIntoSector(int sector) {
+    final allClosed = _players.every((p) => p.isSectorClosed(sector));
+    if (allClosed) return false;
+    return true;
   }
 
   void _onSectorTap(int sector) {
     if (!_canThrowIntoSector(sector)) return;
 
+    // Triple Bull не существует — сбрасываем на Single
+    if (_isTripleMode && sector == 25) {
+      _isTripleMode = false;
+    }
+
     final hits = _getHitCount();
-    if (_wouldExceedDartLimit(hits)) return;
+    if (_wouldExceedSectorLimit(sector, hits)) return;
 
     _currentTurnHits[sector] = (_currentTurnHits[sector] ?? 0) + hits;
-    _dartsUsed += hits;
 
     _isTripleMode = false;
     _isDoubleMode = false;
 
     setState(() {});
-    // Ход НЕ переходит автоматически — только по OK
   }
 
   void _onOkTap() {
-    // OK без ввода — всё равно переход хода (промахнулся)
     final player = _players[_currentPlayerIndex];
 
-    if (_dartsUsed > 0) {
+    if (_currentTurnHits.isNotEmpty) {
       // Формируем строку последнего подхода
       final parts = <String>[];
       for (final entry in _currentTurnHits.entries) {
@@ -314,7 +333,8 @@ class _CricketGamePageState extends State<CricketGamePage> {
       canPop: true,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('$variantLabel • $sets set${sets > 1 ? 's' : ''}, $legs leg${legs > 1 ? 's' : ''}'),
+          title: Text(
+              '$variantLabel • $sets set${sets > 1 ? 's' : ''}, $legs leg${legs > 1 ? 's' : ''}'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),

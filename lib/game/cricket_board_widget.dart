@@ -19,7 +19,7 @@ class CricketPlayerBoardInfo {
   final String name;
   final int legsWon;
   final int setsWon;
-  final double? avgHitsPerTurn; // среднее hits за подход
+  final double? avgHitsPerTurn;
   final bool isActive;
   final int totalPoints;
   final Map<int, CricketSectorState> sectors;
@@ -43,7 +43,7 @@ class CricketPlayerBoardInfo {
 class CricketBoardState {
   final List<CricketPlayerBoardInfo> players;
   final int currentPlayerIndex;
-  final int previousPlayerIndex; // кто только что бросил
+  final int previousPlayerIndex;
   final CricketVariant variant;
   final int sets;
   final int legs;
@@ -74,7 +74,7 @@ class CricketBoardWidget extends StatelessWidget {
   final void Function()? onDoubleTap;
   final void Function()? onOkTap;
 
-  /// Хиты за текущий подход (для визуализации полосок)
+  /// Хиты за текущий подход (для визуализации полосок и h/t)
   final Map<int, int> currentTurnHits;
 
   final bool isTripleMode;
@@ -101,6 +101,8 @@ class CricketBoardWidget extends StatelessWidget {
       children: [
         // Верхняя панель: карточки игроков + счёт между ними
         _buildPlayerBar(theme),
+        // Строка с суммой очков (только American)
+        if (isAmerican) _buildTotalPointsBar(theme),
         // Основное поле: сектора — занимает всё оставшееся место
         Expanded(child: _buildBoard(theme, isAmerican)),
         // Нижняя панель: Triple / Double / OK
@@ -124,14 +126,11 @@ class CricketBoardWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Левый игрок
           Expanded(child: _buildPlayerCard(theme, 0)),
-          // Счёт между плашками
           if (playerCount >= 2) ...[
             const SizedBox(width: 4),
             _buildScoreCenter(theme),
             const SizedBox(width: 4),
-            // Правый игрок
             Expanded(child: _buildPlayerCard(theme, 1)),
           ],
         ],
@@ -181,7 +180,6 @@ class CricketBoardWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Имя + бейджи
           Row(
             children: [
               Expanded(
@@ -202,7 +200,6 @@ class CricketBoardWidget extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 2),
-          // avg h/t
           Text(
             p.avgHitsPerTurn != null
                 ? 'ср: ${p.avgHitsPerTurn!.toStringAsFixed(1)} h/t'
@@ -212,7 +209,6 @@ class CricketBoardWidget extends StatelessWidget {
               fontSize: 11,
             ),
           ),
-          // Last turn — только у завершившего ход (не активного)
           if (!isActive && isPrevious && p.lastTurnSummary != null)
             Text(
               p.lastTurnSummary!,
@@ -246,6 +242,44 @@ class CricketBoardWidget extends StatelessWidget {
   }
 
   // ===================================================================
+  // СТРОКА СУММЫ ОЧКОВ (American)
+  // ===================================================================
+
+  Widget _buildTotalPointsBar(ThemeData theme) {
+    final p0 = state.players[0];
+    final p1 = state.players.length >= 2 ? state.players[1] : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '${p0.name}: ${p0.totalPoints} pts',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: p0.isActive ? Colors.green.shade300 : Colors.white70,
+            ),
+          ),
+          if (p1 != null) ...[
+            const SizedBox(width: 24),
+            Text(
+              '${p1.name}: ${p1.totalPoints} pts',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: p1.isActive ? Colors.green.shade300 : Colors.white70,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===================================================================
   // ОСНОВНОЕ ПОЛЕ — СЕКТОРА
   // ===================================================================
 
@@ -270,7 +304,6 @@ class CricketBoardWidget extends StatelessWidget {
     final sectorLabel = sector == 25 ? 'Bull' : '$sector';
     final playerCount = state.players.length;
 
-    // Определяем состояние сектора
     final allClosed = state.players.every(
       (p) => (p.sectors[sector] ?? const CricketSectorState()).isClosed,
     );
@@ -286,10 +319,11 @@ class CricketBoardWidget extends StatelessWidget {
         children: [
           // --- Левая половина: Игрок 1 ---
           if (playerCount >= 1) ...[
+            // h/t колонка (только для активного игрока)
+            _buildHTColumn(theme, sector, 0),
             // Колонка points (только American)
-            if (isAmerican)
-              _buildPointsColumn(theme, sector, 0),
-            // Closure-ячейка (три полоски)
+            if (isAmerican) _buildPointsColumn(theme, sector, 0),
+            // Closure-ячейка
             Expanded(
               flex: isAmerican ? 3 : 4,
               child: _buildClosureCell(theme, sector, 0),
@@ -297,7 +331,10 @@ class CricketBoardWidget extends StatelessWidget {
           ],
 
           // --- Центр: СЕКТОР ---
-          _buildSectorCell(theme, sector, sectorLabel, allClosed),
+          Expanded(
+            flex: 3,
+            child: _buildSectorCell(theme, sector, sectorLabel, allClosed),
+          ),
 
           // --- Правая половина: Игрок 2 ---
           if (playerCount >= 2) ...[
@@ -307,10 +344,38 @@ class CricketBoardWidget extends StatelessWidget {
               child: _buildClosureCell(theme, sector, 1),
             ),
             // Колонка points (только American)
-            if (isAmerican)
-              _buildPointsColumn(theme, sector, 1),
+            if (isAmerican) _buildPointsColumn(theme, sector, 1),
+            // h/t колонка (только для активного игрока)
+            _buildHTColumn(theme, sector, 1),
           ],
         ],
+      ),
+    );
+  }
+
+  // ===================================================================
+  // h/t КОЛОНКА (хиты за текущий подход)
+  // ===================================================================
+
+  Widget _buildHTColumn(ThemeData theme, int sector, int playerIndex) {
+    final p = state.players[playerIndex];
+    if (!p.isActive) return const SizedBox(width: 24);
+
+    final turnHits = currentTurnHits[sector] ?? 0;
+
+    return SizedBox(
+      width: 24,
+      child: Center(
+        child: turnHits > 0
+            ? Text(
+                '$turnHits',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -322,7 +387,6 @@ class CricketBoardWidget extends StatelessWidget {
   Widget _buildSectorCell(
       ThemeData theme, int sector, String label, bool allClosed) {
     return Container(
-      width: 64,
       margin: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
         color: allClosed ? Colors.grey.shade700 : Colors.transparent,
@@ -359,34 +423,31 @@ class CricketBoardWidget extends StatelessWidget {
     final isClosed = sectorState.isClosed;
     final isActive = p.isActive;
 
-    // Хиты за текущий подход (для визуализации тапа)
-    final turnHits = currentTurnHits[sector] ?? 0;
+    // Хиты за текущий подход — только для активного игрока
+    final turnHits = isActive ? (currentTurnHits[sector] ?? 0) : 0;
 
-    // Можно ли тапать: активный игрок и сектор не закрыт у всех
+    // Можно ли тапать
     final canTap = isActive && !state.players.every(
       (pl) => (pl.sectors[sector] ?? const CricketSectorState()).isClosed,
     );
 
-    // Определяем, закрыт ли сектор у оппонента (для розовой подсветки)
+    // Закрыт ли сектор у оппонента
     final opponentClosed = state.players.length >= 2 &&
         state.players
             .where((pl) => pl != p)
             .every((pl) => (pl.sectors[sector] ?? const CricketSectorState()).isClosed);
 
-    // Цвет полосок
-    Color stripeColor;
-    if (opponentClosed && !isClosed) {
-      stripeColor = Colors.pink.shade300; // розовый — проблема
-    } else {
-      stripeColor = Colors.green.shade500;
-    }
+    // Базовая заливка: розовая если сектор закрыт у оппонента, но не у нас
+    final bgColor = (opponentClosed && !isClosed)
+        ? Colors.pink.shade900.withValues(alpha: 0.5)
+        : Colors.grey.shade900;
 
     return GestureDetector(
       onTap: canTap ? () => onSectorTap?.call(sector) : null,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
-          color: Colors.grey.shade900,
+          color: bgColor,
           borderRadius: BorderRadius.circular(4),
           border: isClosed
               ? Border.all(color: Colors.green.shade400, width: 1)
@@ -398,21 +459,18 @@ class CricketBoardWidget extends StatelessWidget {
             Expanded(
               child: _buildStripe(
                 filled: hits + turnHits >= 3,
-                color: stripeColor,
               ),
             ),
             // Средняя полоска (2-й хит)
             Expanded(
               child: _buildStripe(
                 filled: hits + turnHits >= 2,
-                color: stripeColor,
               ),
             ),
             // Нижняя полоска (1-й хит)
             Expanded(
               child: _buildStripe(
                 filled: hits + turnHits >= 1,
-                color: stripeColor,
               ),
             ),
           ],
@@ -421,11 +479,11 @@ class CricketBoardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildStripe({required bool filled, required Color color}) {
+  Widget _buildStripe({required bool filled}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       decoration: BoxDecoration(
-        color: filled ? color : Colors.grey.shade800,
+        color: filled ? Colors.green.shade500 : Colors.grey.shade800,
         borderRadius: BorderRadius.circular(2),
       ),
     );
