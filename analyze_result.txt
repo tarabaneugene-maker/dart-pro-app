@@ -1,0 +1,6 @@
+Analyzing cricket_game_page.dart...
+
+   info - cricket_game_page.dart:69:33 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - cricket_game_page.dart:70:35 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+
+2 issues found.

@@ -7,13 +7,8 @@ import '../models/game_enums.dart';
 
 /// Состояние одного сектора для одного игрока
 class CricketSectorState {
-  /// Количество попаданий (0-3+)
   final int hits;
-
-  /// Закрыт ли сектор (hits >= 3)
   bool get isClosed => hits >= 3;
-
-  /// Очки, набранные в этом секторе (только American)
   final int points;
 
   const CricketSectorState({this.hits = 0, this.points = 0});
@@ -24,19 +19,23 @@ class CricketPlayerBoardInfo {
   final String name;
   final int legsWon;
   final int setsWon;
-  final double? average; // % попаданий
+  final double? avgHitsPerTurn; // среднее hits за подход
   final bool isActive;
-  final int totalPoints; // общие очки (American)
-  final Map<int, CricketSectorState> sectors; // 20,19,18,17,16,15,25(Bull)
+  final int totalPoints;
+  final Map<int, CricketSectorState> sectors;
+
+  /// Строка последнего подхода: "20 - 6 | 19 - 3"
+  final String? lastTurnSummary;
 
   const CricketPlayerBoardInfo({
     required this.name,
     this.legsWon = 0,
     this.setsWon = 0,
-    this.average,
+    this.avgHitsPerTurn,
     this.isActive = false,
     this.totalPoints = 0,
     required this.sectors,
+    this.lastTurnSummary,
   });
 }
 
@@ -63,34 +62,22 @@ class CricketBoardState {
 // CRICKET BOARD WIDGET
 // ===================================================================
 
-/// Сектора для Cricket: 20, 19, 18, 17, 16, 15, Bull(25)
 const List<int> cricketSectors = [20, 19, 18, 17, 16, 15, 25];
 
 class CricketBoardWidget extends StatelessWidget {
   final CricketBoardState state;
 
-  /// Callback при тапе на сектор (для ввода)
+  /// Callback при тапе на closure-ячейку сектора
   final void Function(int sector)? onSectorTap;
 
-  /// Callback при тапе на Triple
   final void Function()? onTripleTap;
-
-  /// Callback при тапе на Double
   final void Function()? onDoubleTap;
-
-  /// Callback при тапе на OK
   final void Function()? onOkTap;
 
-  /// Текущие hits за подход (для отображения подсказки)
+  /// Хиты за текущий подход (для подсветки в колонке h/t)
   final Map<int, int> currentTurnHits;
 
-  /// Результаты последних 3 дротиков (для last approach)
-  final List<String> lastDartResults;
-
-  /// Выбран ли режим Triple
   final bool isTripleMode;
-
-  /// Выбран ли режим Double
   final bool isDoubleMode;
 
   const CricketBoardWidget({
@@ -101,7 +88,6 @@ class CricketBoardWidget extends StatelessWidget {
     this.onDoubleTap,
     this.onOkTap,
     this.currentTurnHits = const {},
-    this.lastDartResults = const [],
     this.isTripleMode = false,
     this.isDoubleMode = false,
   });
@@ -113,19 +99,13 @@ class CricketBoardWidget extends StatelessWidget {
 
     return Column(
       children: [
-        // Верхняя часть: карточки игроков
+        // Верхняя панель: карточки игроков
         _buildPlayerCards(theme),
-        const Divider(height: 1),
-        // Сектора
-        Expanded(
-          child: _buildSectors(theme, isAmerican),
-        ),
-        // Last approach (горизонтально)
-        _buildLastApproach(theme),
-        const Divider(height: 1),
-        // Score block (только American)
-        if (isAmerican) _buildScoreBlock(theme),
-        // Панель ввода: Triple / Double / OK
+        const Divider(height: 1, thickness: 2),
+        // Основное поле: сектора
+        Expanded(child: _buildBoard(theme, isAmerican)),
+        const Divider(height: 1, thickness: 2),
+        // Нижняя панель: Triple / Double / OK
         _buildInputButtons(theme),
       ],
     );
@@ -175,12 +155,23 @@ class CricketBoardWidget extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  if (p.average != null)
+                  // Среднее hits per turn
+                  if (p.avgHitsPerTurn != null)
                     Text(
-                      'ср: ${p.average!.toStringAsFixed(1)}%',
+                      'ср: ${p.avgHitsPerTurn!.toStringAsFixed(1)} h/t',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
+                    ),
+                  // Last turn summary
+                  if (p.lastTurnSummary != null && p.lastTurnSummary!.isNotEmpty)
+                    Text(
+                      p.lastTurnSummary!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                 ],
               ),
@@ -208,146 +199,198 @@ class CricketBoardWidget extends StatelessWidget {
   }
 
   // ===================================================================
-  // СЕКТОРА
+  // ОСНОВНОЕ ПОЛЕ — 10 КОЛОНОК
+  // ===================================================================
+  //
+  //  Для 2 игроков:
+  //  Колонки: 1=h/t, 2=points, 3-4=closure, 5-6=СЕКТОР, 7-8=closure, 9=points, 10=h/t
+  //  Для Classic: колонки 2 и 9 скрыты, closure растянут
+  //  Для 1 игрока: левая половина — игрок, правая — оппонент (без ввода)
+  //
   // ===================================================================
 
-  Widget _buildSectors(ThemeData theme, bool isAmerican) {
-    return ListView.builder(
-      itemCount: cricketSectors.length,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      itemBuilder: (context, index) {
-        final sector = cricketSectors[index];
-        return _buildSectorRow(theme, sector, isAmerican);
+  Widget _buildBoard(ThemeData theme, bool isAmerican) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        // Пропорции колонок (доли от ширины)
+        // h/t: 0.08, points: 0.10, closure: 0.20, sector: 0.24, closure: 0.20, points: 0.10, h/t: 0.08
+        // Для Classic: h/t: 0.10, closure: 0.28, sector: 0.24, closure: 0.28, h/t: 0.10
+        return ListView.builder(
+          itemCount: cricketSectors.length,
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          itemBuilder: (context, index) {
+            final sector = cricketSectors[index];
+            return _buildBoardRow(theme, sector, isAmerican, totalWidth);
+          },
+        );
       },
     );
   }
 
-  Widget _buildSectorRow(ThemeData theme, int sector, bool isAmerican) {
+  Widget _buildBoardRow(ThemeData theme, int sector, bool isAmerican, double totalWidth) {
     final sectorLabel = sector == 25 ? 'Bull' : '$sector';
     final playerCount = state.players.length;
 
+    // Определяем цвета сектора
+    final activePlayer = state.currentPlayer;
+    final activeSector = activePlayer.sectors[sector] ?? const CricketSectorState();
+    final allClosed = state.players.every(
+      (p) => (p.sectors[sector] ?? const CricketSectorState()).isClosed,
+    );
+
+    Color sectorColor;
+    if (allClosed) {
+      sectorColor = Colors.grey.shade700;
+    } else if (!activeSector.isClosed) {
+      sectorColor = Colors.green.shade700;
+    } else {
+      sectorColor = Colors.orange.shade700;
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      height: 48,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         children: [
-          // Для каждого игрока — его колонка
-          ...List.generate(playerCount, (i) {
-            final p = state.players[i];
-            final sectorState = p.sectors[sector] ?? const CricketSectorState();
-            final turnHits = currentTurnHits[sector] ?? 0;
-            return Expanded(
-              child: _buildPlayerSectorCell(
-                theme, sector, sectorState, turnHits, isAmerican, p.isActive,
-              ),
-            );
-          }),
-          // Центральная плашка с названием сектора
+          // --- Левая половина: Игрок 1 ---
+          if (playerCount >= 1) ...[
+            // Колонка 1: h/t (хиты за текущий подход)
+            _buildHTColumn(theme, sector, 0),
+            // Колонка 2: points (только American)
+            if (isAmerican) _buildPointsColumn(theme, sector, 0),
+            // Колонки 3-4: closure
+            Expanded(
+              flex: isAmerican ? 2 : 3,
+              child: _buildClosureCell(theme, sector, 0),
+            ),
+          ],
+
+          // --- Центр: СЕКТОР ---
           GestureDetector(
             onTap: () => onSectorTap?.call(sector),
             child: Container(
-              width: 48,
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              width: totalWidth * 0.24,
               decoration: BoxDecoration(
-                color: _getSectorColor(theme, sector),
+                color: sectorColor,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                sectorLabel,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+              child: Center(
+                child: Text(
+                  sectorLabel,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
           ),
+
+          // --- Правая половина: Игрок 2 (или оппонент) ---
+          if (playerCount >= 2) ...[
+            // Колонки 7-8: closure
+            Expanded(
+              flex: isAmerican ? 2 : 3,
+              child: _buildClosureCell(theme, sector, 1),
+            ),
+            // Колонка 9: points (только American)
+            if (isAmerican) _buildPointsColumn(theme, sector, 1),
+            // Колонка 10: h/t
+            _buildHTColumn(theme, sector, 1),
+          ],
         ],
       ),
     );
   }
 
-  Color _getSectorColor(ThemeData theme, int sector) {
-    // Определяем, может ли активный игрок кидать в этот сектор
-    final activePlayer = state.currentPlayer;
-    final activeSector = activePlayer.sectors[sector] ?? const CricketSectorState();
+  // ===================================================================
+  // ЯЧЕЙКИ
+  // ===================================================================
 
-    // Если сектор закрыт у всех — серый
-    final allClosed = state.players.every(
-      (p) => (p.sectors[sector] ?? const CricketSectorState()).isClosed,
+  /// Колонка h/t (хиты за текущий подход)
+  Widget _buildHTColumn(ThemeData theme, int sector, int playerIndex) {
+    final turnHits = currentTurnHits[sector] ?? 0;
+
+    return SizedBox(
+      width: 28,
+      child: Center(
+        child: turnHits > 0
+            ? Text(
+                '$turnHits',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              )
+            : null,
+      ),
     );
-    if (allClosed) return Colors.grey.shade700;
-
-    // Если активный игрок ещё не закрыл — зелёный (можно кидать)
-    if (!activeSector.isClosed) return Colors.green.shade700;
-
-    // Если закрыл только активный — оранжевый (можно набирать очки в American)
-    return Colors.orange.shade700;
   }
 
-  Widget _buildPlayerSectorCell(
-    ThemeData theme,
-    int sector,
-    CricketSectorState sectorState,
-    int turnHits,
-    bool isAmerican,
-    bool isActive,
-  ) {
+  /// Колонка points (только American)
+  Widget _buildPointsColumn(ThemeData theme, int sector, int playerIndex) {
+    final p = state.players[playerIndex];
+    final sectorState = p.sectors[sector] ?? const CricketSectorState();
+
+    return SizedBox(
+      width: 32,
+      child: Center(
+        child: sectorState.points > 0
+            ? Text(
+                '${sectorState.points}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
+  /// Ячейка closure (тапабельная)
+  Widget _buildClosureCell(ThemeData theme, int sector, int playerIndex) {
+    final p = state.players[playerIndex];
+    final sectorState = p.sectors[sector] ?? const CricketSectorState();
     final marker = _getMarker(sectorState.hits);
     final isClosed = sectorState.isClosed;
+    final isActive = p.isActive;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Маркер закрытия
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: isClosed
-                  ? Colors.grey.shade800
-                  : (isActive ? Colors.green.shade900 : null),
-              borderRadius: BorderRadius.circular(4),
-              border: isClosed
-                  ? Border.all(color: Colors.grey.shade600, width: 2)
-                  : null,
-            ),
-            child: Center(
-              child: Text(
-                marker,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isClosed ? Colors.white : Colors.grey.shade400,
-                ),
-              ),
+    // Можно ли тапать: активный игрок и сектор не закрыт у всех
+    final canTap = isActive && !state.players.every(
+      (pl) => (pl.sectors[sector] ?? const CricketSectorState()).isClosed,
+    );
+
+    return GestureDetector(
+      onTap: canTap ? () => onSectorTap?.call(sector) : null,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: isClosed
+              ? Colors.grey.shade800
+              : (isActive ? Colors.green.shade900 : Colors.grey.shade900),
+          borderRadius: BorderRadius.circular(4),
+          border: isClosed
+              ? Border.all(color: Colors.grey.shade600, width: 1)
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            marker,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isClosed ? Colors.white : Colors.grey.shade400,
             ),
           ),
-          const SizedBox(height: 2),
-          // Подсказка hits за текущий подход (обнуляется после OK)
-          if (turnHits > 0)
-            Text(
-              '$turnHits',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.amber,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          // Очки (только American)
-          if (isAmerican && sectorState.points > 0)
-            Text(
-              '${sectorState.points}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -361,75 +404,6 @@ class CricketBoardWidget extends StatelessWidget {
   }
 
   // ===================================================================
-  // LAST APPROACH
-  // ===================================================================
-
-  Widget _buildLastApproach(ThemeData theme) {
-    if (lastDartResults.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('← ', style: TextStyle(fontSize: 13)),
-          ...lastDartResults.map((dart) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  dart,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-
-  // ===================================================================
-  // SCORE BLOCK (только American)
-  // ===================================================================
-
-  Widget _buildScoreBlock(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: state.players.map((p) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                p.name,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              Text(
-                '${p.totalPoints}',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: p.isActive
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ===================================================================
   // ПАНЕЛЬ ВВОДА: Triple / Double / OK
   // ===================================================================
 
@@ -438,9 +412,6 @@ class CricketBoardWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        border: const Border(
-          top: BorderSide(width: 2),
-        ),
       ),
       child: Row(
         children: [
