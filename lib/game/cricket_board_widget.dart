@@ -389,18 +389,22 @@ class CricketBoardWidget extends StatelessWidget {
           if (playerCount >= 1)
             Expanded(
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // info + closure — прижаты к левому краю
                   _buildInfoColumn(theme, sector, 0, isAmerican),
                   _buildClosureIndicators(theme, sector, 0),
+                  const Spacer(),
+                  // круг — по центру левой половины
                   _buildInputCircle(theme, sector, 0, rowHeight),
+                  const Spacer(),
                 ],
               ),
             ),
 
-          // --- Центр: СЕКТОР (фиксированная ширина = ширине блока счёта) ---
+          // --- Центр: СЕКТОР (квадратный — ширина = высоте строки) ---
           SizedBox(
-            width: 64,
+            width: rowHeight,
+            height: rowHeight,
             child: _buildSectorCell(theme, sector, sectorLabel, allClosed),
           ),
 
@@ -408,9 +412,12 @@ class CricketBoardWidget extends StatelessWidget {
           if (playerCount >= 2)
             Expanded(
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
+                  const Spacer(),
+                  // круг — по центру правой половины
                   _buildInputCircle(theme, sector, 1, rowHeight),
+                  const Spacer(),
+                  // closure + info — прижаты к правому краю
                   _buildClosureIndicators(theme, sector, 1),
                   _buildInfoColumn(theme, sector, 1, isAmerican),
                 ],
@@ -434,32 +441,39 @@ class CricketBoardWidget extends StatelessWidget {
 
     return SizedBox(
       width: 28,
-      child: Stack(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Points (American) — по центру по вертикали
-          if (isAmerican && sectorState.points > 0)
-            Center(
-              child: Text(
-                '${sectorState.points}',
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+          // Верхняя строка: points (American)
+          Expanded(
+            child: Center(
+              child: isAmerican && sectorState.points > 0
+                  ? Text(
+                      '${sectorState.points}',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    )
+                  : null,
             ),
-          // h/t (хиты текущего подхода) — по центру по вертикали
-          if (turnHits > 0)
-            Center(
-              child: Text(
-                '$turnHits',
-                style: TextStyle(
-                  color: Colors.amber,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+          ),
+          // Нижняя строка: h/t (хиты текущего подхода)
+          Expanded(
+            child: Center(
+              child: turnHits > 0
+                  ? Text(
+                      '$turnHits',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    )
+                  : null,
             ),
+          ),
         ],
       ),
     );
