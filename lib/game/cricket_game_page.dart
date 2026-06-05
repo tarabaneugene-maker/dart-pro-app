@@ -282,16 +282,32 @@ class _CricketGamePageState extends State<CricketGamePage> {
         final hits = entry.value;
 
         final currentHits = player.hitsPerSector[sector] ?? 0;
-        final hitsToClose =
-            (currentHits < 3) ? (3 - currentHits).clamp(0, hits) : 0;
-        final hitsForPoints = hits - hitsToClose;
+        final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+        final opponentClosed = opponent.isSectorClosed(sector);
+        final myClosed = currentHits >= 3;
 
-        player.addHits(sector, hits);
+        // Определяем, сколько хитов идёт в зачёт (totalHits/totalDarts/avg)
+        int hitsForStats;
+        if (myClosed && opponentClosed) {
+          // Оба закрыли — ни очков, ни хитов
+          hitsForStats = 0;
+        } else if (opponentClosed && !myClosed) {
+          // Соперник закрыл, я нет — в зачёт идёт MIN(осталось до закрытия, сколько сделал)
+          final needToClose = 3 - currentHits;
+          hitsForStats = needToClose.clamp(0, hits);
+        } else {
+          // Сектор открыт (у обоих или только у меня закрыт) — все хиты в зачёт
+          hitsForStats = hits;
+        }
 
-        // БАГ-ФИКС: очки начисляются только если соперник НЕ закрыл сектор
-        if (_variant == CricketVariant.american && hitsForPoints > 0) {
-          final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
-          if (!opponent.isSectorClosed(sector)) {
+        player.addHits(sector, hitsForStats);
+
+        // Очки (American): начисляются за хиты сверх 3, если я закрыл, а соперник — нет
+        if (_variant == CricketVariant.american) {
+          final hitsToClose =
+              (currentHits < 3) ? (3 - currentHits).clamp(0, hits) : 0;
+          final hitsForPoints = hits - hitsToClose;
+          if (hitsForPoints > 0 && !opponentClosed) {
             final sectorValue = sector == 25 ? 25 : sector;
             player.addPoints(sector, sectorValue * hitsForPoints);
           }

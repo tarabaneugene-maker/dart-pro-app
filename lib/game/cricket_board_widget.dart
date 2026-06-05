@@ -386,30 +386,36 @@ class CricketBoardWidget extends StatelessWidget {
       child: Row(
         children: [
           // --- Левая половина: Игрок 1 ---
-          if (playerCount >= 1) ...[
-            // Объединённая колонка: points + h/t
-            _buildInfoColumn(theme, sector, 0, isAmerican),
-            // Closure-индикаторы (квадратики)
-            _buildClosureIndicators(theme, sector, 0),
-            // Круг-кнопка для ввода
-            _buildInputCircle(theme, sector, 0, rowHeight),
-          ],
+          if (playerCount >= 1)
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _buildInfoColumn(theme, sector, 0, isAmerican),
+                  _buildClosureIndicators(theme, sector, 0),
+                  _buildInputCircle(theme, sector, 0, rowHeight),
+                ],
+              ),
+            ),
 
-          // --- Центр: СЕКТОР (уже — flex: 2) ---
-          Expanded(
-            flex: 2,
+          // --- Центр: СЕКТОР (фиксированная ширина = ширине блока счёта) ---
+          SizedBox(
+            width: 64,
             child: _buildSectorCell(theme, sector, sectorLabel, allClosed),
           ),
 
           // --- Правая половина: Игрок 2 ---
-          if (playerCount >= 2) ...[
-            // Круг-кнопка для ввода
-            _buildInputCircle(theme, sector, 1, rowHeight),
-            // Closure-индикаторы (квадратики)
-            _buildClosureIndicators(theme, sector, 1),
-            // Объединённая колонка: points + h/t
-            _buildInfoColumn(theme, sector, 1, isAmerican),
-          ],
+          if (playerCount >= 2)
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  _buildInputCircle(theme, sector, 1, rowHeight),
+                  _buildClosureIndicators(theme, sector, 1),
+                  _buildInfoColumn(theme, sector, 1, isAmerican),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -428,39 +434,32 @@ class CricketBoardWidget extends StatelessWidget {
 
     return SizedBox(
       width: 28,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
         children: [
-          // Верхняя строка: points (American)
-          Expanded(
-            child: Center(
-              child: isAmerican && sectorState.points > 0
-                  ? Text(
-                      '${sectorState.points}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    )
-                  : null,
+          // Points (American) — по центру по вертикали
+          if (isAmerican && sectorState.points > 0)
+            Center(
+              child: Text(
+                '${sectorState.points}',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
-          ),
-          // Нижняя строка: h/t (хиты текущего подхода)
-          Expanded(
-            child: Center(
-              child: turnHits > 0
-                  ? Text(
-                      '$turnHits',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    )
-                  : null,
+          // h/t (хиты текущего подхода) — по центру по вертикали
+          if (turnHits > 0)
+            Center(
+              child: Text(
+                '$turnHits',
+                style: TextStyle(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
