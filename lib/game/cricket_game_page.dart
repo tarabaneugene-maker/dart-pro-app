@@ -190,20 +190,11 @@ class _CricketGamePageState extends State<CricketGamePage> {
   void _onSectorTap(int sector) {
     if (!_canThrowIntoSector(sector)) return;
 
-    if (_isTripleMode && sector == 25) {
-      _isTripleMode = false;
-    }
-
-    final player = _players[_currentPlayerIndex];
     int hits = _getHitCount();
 
-    // БАГ-ФИКС: если игрок ещё не закрыл сектор, капаем hits до 3 - currentHits
-    if (!player.isSectorClosed(sector)) {
-      final currentHits = player.hitsPerSector[sector] ?? 0;
-      final needed = 3 - currentHits;
-      if (hits > needed) {
-        hits = needed;
-      }
+    // Triple не работает с Bull
+    if (sector == 25 && _isTripleMode) {
+      hits = 1;
     }
 
     if (_wouldExceedSectorLimit(sector, hits)) return;

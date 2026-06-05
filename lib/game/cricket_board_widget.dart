@@ -228,7 +228,7 @@ class CricketBoardWidget extends StatelessWidget {
               fontSize: 11,
             ),
           ),
-          // TotalPoints (American) — правый нижний угол
+          // TotalPoints (American) — правый нижний угол, крупно
           if (isAmerican)
             Expanded(
               child: Align(
@@ -236,7 +236,7 @@ class CricketBoardWidget extends StatelessWidget {
                 child: Text(
                   '${p.totalPoints}',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 33,
                     fontWeight: FontWeight.bold,
                     color: isActive ? Colors.white : Colors.white54,
                   ),
@@ -360,7 +360,7 @@ class CricketBoardWidget extends StatelessWidget {
               ),
               child: SizedBox(
                 height: rowHeight,
-                child: _buildBoardRow(theme, sector, isAmerican),
+                child: _buildBoardRow(theme, sector, isAmerican, rowHeight),
               ),
             );
           }).toList(),
@@ -370,7 +370,7 @@ class CricketBoardWidget extends StatelessWidget {
   }
 
   Widget _buildBoardRow(
-      ThemeData theme, int sector, bool isAmerican) {
+      ThemeData theme, int sector, bool isAmerican, double rowHeight) {
     final sectorLabel = sector == 25 ? 'Bull' : '$sector';
     final playerCount = state.players.length;
 
@@ -392,19 +392,19 @@ class CricketBoardWidget extends StatelessWidget {
             // Closure-индикаторы (квадратики)
             _buildClosureIndicators(theme, sector, 0),
             // Круг-кнопка для ввода
-            _buildInputCircle(theme, sector, 0),
+            _buildInputCircle(theme, sector, 0, rowHeight),
           ],
 
-          // --- Центр: СЕКТОР ---
+          // --- Центр: СЕКТОР (уже — flex: 2) ---
           Expanded(
-            flex: 3,
+            flex: 2,
             child: _buildSectorCell(theme, sector, sectorLabel, allClosed),
           ),
 
           // --- Правая половина: Игрок 2 ---
           if (playerCount >= 2) ...[
             // Круг-кнопка для ввода
-            _buildInputCircle(theme, sector, 1),
+            _buildInputCircle(theme, sector, 1, rowHeight),
             // Closure-индикаторы (квадратики)
             _buildClosureIndicators(theme, sector, 1),
             // Объединённая колонка: points + h/t
@@ -508,14 +508,18 @@ class CricketBoardWidget extends StatelessWidget {
   }
 
   // ===================================================================
-  // КРУГ-КНОПКА ДЛЯ ВВОДА
+  // КРУГ-КНОПКА ДЛЯ ВВОДА (максимальный размер по высоте строки)
   // ===================================================================
 
-  Widget _buildInputCircle(ThemeData theme, int sector, int playerIndex) {
+  Widget _buildInputCircle(
+      ThemeData theme, int sector, int playerIndex, double rowHeight) {
     final p = state.players[playerIndex];
     final sectorState = p.sectors[sector] ?? const CricketSectorState();
     final isActive = p.isActive;
     final isClosed = sectorState.isClosed;
+
+    // Размер круга — максимально влезает по высоте строки
+    final circleSize = (rowHeight - 6).clamp(24.0, 60.0);
 
     // Определяем цвет кнопки
     Color? fillColor;
@@ -562,8 +566,8 @@ class CricketBoardWidget extends StatelessWidget {
     return GestureDetector(
       onTap: canTap ? () => onSectorTap?.call(sector) : null,
       child: Container(
-        width: 32,
-        height: 32,
+        width: circleSize,
+        height: circleSize,
         margin: const EdgeInsets.symmetric(horizontal: 3),
         decoration: BoxDecoration(
           color: fillColor,
