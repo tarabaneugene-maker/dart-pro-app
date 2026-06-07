@@ -27,6 +27,9 @@ class _CricketPlayerState {
   /// Строка последнего подхода: "20 - 6 | 19 - 3"
   String? lastTurnSummary;
 
+  /// Хиты последнего подхода (для отображения серым у неактивного игрока)
+  Map<int, int> lastTurnHits;
+
   _CricketPlayerState({
     required this.name,
     this.isBot = false,
@@ -39,6 +42,7 @@ class _CricketPlayerState {
         totalTurns = 0,
         totalPoints = 0,
         lastTurnSummary = null,
+        lastTurnHits = {},
         hitsPerSector = hitsPerSector ??
             {20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0},
         pointsPerSector = pointsPerSector ??
@@ -90,6 +94,7 @@ class _CricketPlayerState {
   CricketPlayerBoardInfo toBoardInfo({
     required bool isActive,
     int? pointsDifference,
+    int? projectedPoints,
   }) {
     final sectors = <int, CricketSectorState>{};
     for (final s in cricketSectors) {
@@ -104,10 +109,11 @@ class _CricketPlayerState {
       setsWon: setsWon,
       avgHitsPerTurn: avgHitsPerTurn,
       isActive: isActive,
-      totalPoints: totalPoints,
+      totalPoints: projectedPoints ?? totalPoints,
       sectors: sectors,
       lastTurnSummary: lastTurnSummary,
       pointsDifference: pointsDifference,
+      lastTurnHits: lastTurnHits,
     );
   }
 }
@@ -188,9 +194,48 @@ class _CricketGamePageState extends State<CricketGamePage> {
     return otherVirtual + newVirtual > _maxDartsPerTurn;
   }
 
+  /// Считает projected очки для игрока с учётом текущего ввода (live preview)
+  int _getProjectedPoints(int playerIndex) {
+    final p = _players[playerIndex];
+    if (playerIndex != _currentPlayerIndex || _currentTurnHits.isEmpty) {
+      return p.totalPoints;
+    }
+    int projected = p.totalPoints;
+    for (final entry in _currentTurnHits.entries) {
+      final sector = entry.key;
+      final hits = entry.value;
+      final currentHits = p.hitsPerSector[sector] ?? 0;
+      final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+      final opponentClosed = opponent.isSectorClosed(sector);
+
+      if (_variant == CricketVariant.american) {
+        final hitsToClose =
+            (currentHits < 3) ? (3 - currentHits).clamp(0, hits) : 0;
+        final hitsForPoints = hits - hitsToClose;
+        if (hitsForPoints > 0 && !opponentClosed) {
+          final sectorValue = sector == 25 ? 25 : sector;
+          projected += sectorValue * hitsForPoints;
+        }
+      }
+    }
+    return projected;
+  }
+
   bool _canThrowIntoSector(int sector) {
     final allClosed = _players.every((p) => p.isSectorClosed(sector));
     if (allClosed) return false;
+
+    final player = _players[_currentPlayerIndex];
+    final tentativeHits =
+        (player.hitsPerSector[sector] ?? 0) + (_currentTurnHits[sector] ?? 0);
+    if (tentativeHits >= 3) {
+      // Уже закрыто с учётом текущего подхода
+      if (_variant == CricketVariant.classic) return false; // Classic — очков нет
+      final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+      if (opponent.isSectorClosed(sector)) return false; // Соперник закрыл → очков не будет
+      // American, соперник не закрыл — можно тапать для очков
+      return true;
+    }
     return true;
   }
 
@@ -326,6 +371,9 @@ class _CricketGamePageState extends State<CricketGamePage> {
       player.lastTurnSummary = '0';
     }
 
+    // Сохраняем хиты подхода для отображения серым у неактивного игрока
+    player.lastTurnHits = Map.from(_currentTurnHits);
+
     _saveOpponentSnapshot();
 
     setState(() {
@@ -422,6 +470,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
                 isActive: e.key == _currentPlayerIndex,
                 pointsDifference:
                     _showDifference ? (e.key == 0 ? diff0 : diff1) : null,
+                projectedPoints: _getProjectedPoints(e.key),
               ))
           .toList(),
       currentPlayerIndex: _currentPlayerIndex,

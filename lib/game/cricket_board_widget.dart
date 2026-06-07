@@ -30,6 +30,9 @@ class CricketPlayerBoardInfo {
   /// Разница очков с соперником (null = показывать тотал)
   final int? pointsDifference;
 
+  /// Хиты последнего подхода (для отображения серым у неактивного игрока)
+  final Map<int, int> lastTurnHits;
+
   const CricketPlayerBoardInfo({
     required this.name,
     this.legsWon = 0,
@@ -40,6 +43,7 @@ class CricketPlayerBoardInfo {
     required this.sectors,
     this.lastTurnSummary,
     this.pointsDifference,
+    this.lastTurnHits = const {},
   });
 }
 
@@ -468,6 +472,8 @@ class CricketBoardWidget extends StatelessWidget {
     final sectorState = p.sectors[sector] ?? const CricketSectorState();
     final isActive = p.isActive;
     final turnHits = isActive ? (currentTurnHits[sector] ?? 0) : 0;
+    // Хиты предыдущего подхода (серым у неактивного)
+    final lastHits = p.lastTurnHits[sector] ?? 0;
 
     return SizedBox(
       width: 28,
@@ -489,7 +495,7 @@ class CricketBoardWidget extends StatelessWidget {
                   : null,
             ),
           ),
-          // Нижняя строка: h/t (хиты текущего подхода)
+          // Нижняя строка: h/t (хиты текущего подхода — жёлтые, или предыдущего — серые)
           Expanded(
             child: Center(
               child: turnHits > 0
@@ -501,7 +507,16 @@ class CricketBoardWidget extends StatelessWidget {
                         fontSize: 16,
                       ),
                     )
-                  : null,
+                  : (lastHits > 0
+                      ? Text(
+                          '$lastHits',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        )
+                      : null),
             ),
           ),
         ],
