@@ -87,7 +87,10 @@ class _CricketPlayerState {
     lastTurnSummary = null;
   }
 
-  CricketPlayerBoardInfo toBoardInfo({required bool isActive}) {
+  CricketPlayerBoardInfo toBoardInfo({
+    required bool isActive,
+    int? pointsDifference,
+  }) {
     final sectors = <int, CricketSectorState>{};
     for (final s in cricketSectors) {
       sectors[s] = CricketSectorState(
@@ -104,6 +107,7 @@ class _CricketPlayerState {
       totalPoints: totalPoints,
       sectors: sectors,
       lastTurnSummary: lastTurnSummary,
+      pointsDifference: pointsDifference,
     );
   }
 }
@@ -137,6 +141,9 @@ class _CricketGamePageState extends State<CricketGamePage> {
 
   /// Снапшот состояния соперника перед его ходом (для undo)
   _PlayerSnapshot? _opponentSnapshot;
+
+  /// Показывать разницу очков вместо тотала (по умолчанию true)
+  bool _showDifference = true;
 
   static const int _maxDartsPerTurn = 3;
 
@@ -399,11 +406,23 @@ class _CricketGamePageState extends State<CricketGamePage> {
     final variantLabel =
         _variant == CricketVariant.classic ? 'Classic' : 'American';
 
+    // Считаем разницу очков для каждого игрока
+    final diff0 = _players.length >= 2
+        ? _players[0].totalPoints - _players[1].totalPoints
+        : 0;
+    final diff1 = _players.length >= 2
+        ? _players[1].totalPoints - _players[0].totalPoints
+        : 0;
+
     final boardState = CricketBoardState(
       players: _players
           .asMap()
           .entries
-          .map((e) => e.value.toBoardInfo(isActive: e.key == _currentPlayerIndex))
+          .map((e) => e.value.toBoardInfo(
+                isActive: e.key == _currentPlayerIndex,
+                pointsDifference:
+                    _showDifference ? (e.key == 0 ? diff0 : diff1) : null,
+              ))
           .toList(),
       currentPlayerIndex: _currentPlayerIndex,
       previousPlayerIndex: _previousPlayerIndex,
@@ -442,6 +461,11 @@ class _CricketGamePageState extends State<CricketGamePage> {
           onEraseLastHit: _onEraseLastHit,
           currentTurnHits: _currentTurnHits,
           isTripleMode: _isTripleMode,
+          onPointsToggle: () {
+            setState(() {
+              _showDifference = !_showDifference;
+            });
+          },
         ),
       ),
     );

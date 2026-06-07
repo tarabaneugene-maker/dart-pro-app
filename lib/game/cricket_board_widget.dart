@@ -27,6 +27,9 @@ class CricketPlayerBoardInfo {
   /// Строка последнего подхода: "20-6 | 19-3"
   final String? lastTurnSummary;
 
+  /// Разница очков с соперником (null = показывать тотал)
+  final int? pointsDifference;
+
   const CricketPlayerBoardInfo({
     required this.name,
     this.legsWon = 0,
@@ -36,6 +39,7 @@ class CricketPlayerBoardInfo {
     this.totalPoints = 0,
     required this.sectors,
     this.lastTurnSummary,
+    this.pointsDifference,
   });
 }
 
@@ -79,6 +83,9 @@ class CricketBoardWidget extends StatelessWidget {
 
   final bool isTripleMode;
 
+  /// Тап по очкам — переключение тотал/разница
+  final VoidCallback? onPointsToggle;
+
   const CricketBoardWidget({
     super.key,
     required this.state,
@@ -88,6 +95,7 @@ class CricketBoardWidget extends StatelessWidget {
     this.onEraseLastHit,
     this.currentTurnHits = const {},
     this.isTripleMode = false,
+    this.onPointsToggle,
   });
 
   @override
@@ -189,7 +197,7 @@ class CricketBoardWidget extends StatelessWidget {
 
     return Container(
       height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: isActive ? Colors.green.shade900 : Colors.grey.shade900,
         borderRadius: BorderRadius.circular(4),
@@ -217,7 +225,7 @@ class CricketBoardWidget extends StatelessWidget {
                   theme.colorScheme.secondaryContainer),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           // Average
           Text(
             p.avgHitsPerTurn != null
@@ -228,22 +236,44 @@ class CricketBoardWidget extends StatelessWidget {
               fontSize: 11,
             ),
           ),
-          // TotalPoints (American) — правый нижний угол, крупно
+          // TotalPoints (American) — по центру справа, с FittedBox
           if (isAmerican)
             Expanded(
               child: Align(
-                alignment: Alignment.bottomRight,
-                child: Text(
-                  '${p.totalPoints}',
-                  style: TextStyle(
-                    fontSize: 33,
-                    fontWeight: FontWeight.bold,
-                    color: isActive ? Colors.white : Colors.white54,
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: onPointsToggle,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _buildPointsText(p),
                   ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPointsText(CricketPlayerBoardInfo p) {
+    if (p.pointsDifference != null && p.pointsDifference != 0) {
+      final diff = p.pointsDifference!;
+      final isPositive = diff > 0;
+      return Text(
+        '${isPositive ? '+' : ''}$diff',
+        style: TextStyle(
+          fontSize: 33,
+          fontWeight: FontWeight.bold,
+          color: isPositive ? Colors.green.shade400 : Colors.red.shade400,
+        ),
+      );
+    }
+    return Text(
+      '${p.totalPoints}',
+      style: TextStyle(
+        fontSize: 33,
+        fontWeight: FontWeight.bold,
+        color: p.isActive ? Colors.white : Colors.white54,
       ),
     );
   }
