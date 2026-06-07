@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/cricket_settings.dart';
 import '../models/game_enums.dart';
+import '../bots/dart_bot_cricket.dart';
+import '../services/bot_service.dart';
 import 'cricket_board_widget.dart';
 
 // ===================================================================
@@ -151,6 +154,12 @@ class _CricketGamePageState extends State<CricketGamePage> {
   /// Показывать разницу очков вместо тотала (по умолчанию true)
   bool _showDifference = true;
 
+  /// Бот сейчас "думает" — блокируем ввод
+  bool _isBotThinking = false;
+
+  /// Кэш ботов по индексу игрока
+  final Map<int, DartBotCricket> _botCache = {};
+
   static const int _maxDartsPerTurn = 3;
 
   @override
@@ -161,6 +170,11 @@ class _CricketGamePageState extends State<CricketGamePage> {
     _players = widget.settings.players.map((p) {
       return _CricketPlayerState(name: p.name, isBot: p.isBot);
     }).toList();
+
+    // Если первый игрок — бот, запускаем его ход после сборки
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _triggerBotTurnIfNeeded();
+    });
   }
 
   void _resetTurnInput() {
@@ -240,6 +254,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
   }
 
   void _onSectorTap(int sector) {
+    if (_isBotThinking) return;
     if (!_canThrowIntoSector(sector)) return;
 
     int hits = _getHitCount();
@@ -260,6 +275,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
   }
 
   void _onEraseLastHit() {
+    if (_isBotThinking) return;
     if (_turnHistory.isEmpty) return;
 
     final last = _turnHistory.removeLast();
@@ -317,6 +333,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
   }
 
   void _onOkTap() {
+    if (_isBotThinking) return;
     final player = _players[_currentPlayerIndex];
 
     if (_currentTurnHits.isNotEmpty) {
@@ -383,6 +400,65 @@ class _CricketGamePageState extends State<CricketGamePage> {
     });
 
     _checkWinCondition();
+    _triggerBotTurnIfNeeded();
+  }
+
+  /// Запустить ход бота, если следующий игрок — бот
+  void _triggerBotTurnIfNeeded() {
+    if (_isBotThinking) return;
+    final nextPlayer = _players[_currentPlayerIndex];
+    if (!nextPlayer.isBot) return;
+
+    _isBotThinking = true;
+
+    // Небольшая пауза, чтобы игрок увидел смену хода
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      _executeBotTurn();
+    });
+  }
+
+  /// Выполнить ход бота
+  void _executeBotTurn() {
+    final botPlayer = _players[_currentPlayerIndex];
+    if (!botPlayer.isBot) {
+      _isBotThinking = false;
+      return;
+    }
+
+    // Получаем или создаём бота
+    final bot = _botCache.putIfAbsent(
+      _currentPlayerIndex,
+      () {
+        final config = widget.settings.players[_currentPlayerIndex];
+        return BotService.createBotCricket(config.botLevel ?? BotLevel.amateur45_55);
+      },
+    );
+
+    final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+
+    // Бот делает бросок
+    final botResult = bot.throwTurnWithContext(
+      myHits: botPlayer.hitsPerSector,
+      opponentHits: opponent.hitsPerSector,
+      variant: _variant,
+    );
+
+    // Заполняем _currentTurnHits результатом бота
+    _currentTurnHits
+      ..clear()
+      ..addAll(botResult);
+
+    // Сохраняем историю для erase (не используется для бота, но для консистентности)
+    _turnHistory.clear();
+    for (final entry in botResult.entries) {
+      _turnHistory.add(_TurnHitEntry(sector: entry.key, hits: entry.value));
+    }
+
+    _isBotThinking = false;
+
+    // Вызываем _onOkTap для обработки хода
+    _onOkTap();
   }
 
   void _checkWinCondition() {
@@ -441,6 +517,7 @@ class _CricketGamePageState extends State<CricketGamePage> {
       _opponentSnapshot = null;
       _resetTurnInput();
     });
+    _triggerBotTurnIfNeeded();
   }
 
   // ===================================================================

@@ -1,11 +1,17 @@
 import '../models/game_enums.dart';
 import '../bots/dart_bot_501.dart';
+import '../bots/dart_bot_cricket.dart';
 
 /// Сервис для управления ботами
 class BotService {
   /// Создать бота для игры 501
   static DartBot501 createBot501(BotLevel level) {
     return DartBot501(level);
+  }
+
+  /// Создать бота для игры Cricket
+  static DartBotCricket createBotCricket(BotLevel level) {
+    return DartBotCricket(level);
   }
 
   /// Получить список доступных уровней ботов

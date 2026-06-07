@@ -1,5 +1,3 @@
-import 'dart:math';
-
 /// Координаты целей на мишени для дартс
 /// Единый источник истины для всех ботов и симуляторов
 ///
@@ -14,24 +12,6 @@ import 'dart:math';
 ///   20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5
 class TargetCoordinates {
   TargetCoordinates._();
-
-  /// Угол центра сектора в радианах от вертикали (12 часов)
-  /// Сектор 20 — наверху (угол = -π/2), далее по часовой
-  static double _sectorAngle(int sector) {
-    // Порядок секторов по часовой от 20
-    const order = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
-    final index = order.indexOf(sector);
-    if (index == -1) return 0;
-    // 20 секторов, каждый занимает 18° (π/10)
-    // Сектор 20 на 12 часах = -π/2 (вверх по Y)
-    return -pi / 2 + index * (pi / 10);
-  }
-
-  /// Координаты точки на окружности заданного радиуса в секторе
-  static Point _pointOnRadius(int sector, double radius) {
-    final angle = _sectorAngle(sector);
-    return Point(radius * cos(angle), radius * sin(angle));
-  }
 
   /// Карта координат всех целей на мишени
   static const Map<String, Point> all = {
