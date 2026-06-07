@@ -100,9 +100,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -138,11 +135,11 @@ class _HomePageState extends State<HomePage> {
               _MenuTile(
                 icon: Icons.fitness_center,
                 title: 'Тренировка',
-                subtitle: 'Сектор, Around the Clock',
+                subtitle: 'Сектор, Around, Bob27, Shanghai',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const TrainingPage(),
+                      builder: (_) => TrainingPage(backend: _backend),
                     ),
                   );
                 },

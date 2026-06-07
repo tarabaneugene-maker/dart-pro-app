@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'training_models.dart';
 
-/// Прямоугольная плитка режима тренировки в стиле главной страницы
+// ===================================================================
+// ПЛИТКА РЕЖИМА ТРЕНИРОВКИ
+// ===================================================================
+
 class TrainingModeCard extends StatelessWidget {
   final String title;
   final String description;
@@ -65,6 +69,87 @@ class TrainingModeCard extends StatelessWidget {
   }
 }
 
+// ===================================================================
+// ПАНЕЛЬ ИГРОКОВ (парный режим)
+// ===================================================================
+
+class TrainingPlayerBar extends StatelessWidget {
+  final TrainingPlayerInfo player1;
+  final TrainingPlayerInfo player2;
+  final int currentPlayerIndex;
+  final bool isPaired;
+
+  const TrainingPlayerBar({
+    super.key,
+    required this.player1,
+    required this.player2,
+    required this.currentPlayerIndex,
+    required this.isPaired,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          _playerCard(theme, player1, currentPlayerIndex == 0),
+          if (isPaired) ...[
+            const SizedBox(width: 8),
+            _playerCard(theme, player2, currentPlayerIndex == 1),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _playerCard(ThemeData theme, TrainingPlayerInfo p, bool isActive) {
+    return Expanded(
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.green.shade900 : Colors.grey.shade900,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              p.name,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Очки: ${p.totalScore}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// ПАНЕЛЬ ВВОДА (общий стиль)
+// ===================================================================
+
 class TrainingInputMenu extends StatelessWidget {
   final int maxValue;
   final bool disabled;
@@ -87,41 +172,57 @@ class TrainingInputMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    final int cappedMaxValue = maxValue.clamp(1, 9);
-    final List<int> keypadValues =
+    final colors = Theme.of(context).colorScheme;
+    final cappedMaxValue = maxValue.clamp(1, 9);
+    final keypadValues =
         List<int>.generate(cappedMaxValue, (int index) => index + 1);
-    final int totalKeys = keypadValues.length + 1;
+    final totalKeys = keypadValues.length + 1;
 
-    final ButtonStyle compactButtonStyle = ElevatedButton.styleFrom(
-      minimumSize: const Size(0, 34),
-      maximumSize: const Size(double.infinity, 34),
+    final btnStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 38),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      backgroundColor: colors.secondaryContainer,
-      foregroundColor: colors.onSecondaryContainer,
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-      visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
       ),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        // AutoOk toggle
         Align(
           alignment: Alignment.centerLeft,
-          child: ElevatedButton(
-            style: compactButtonStyle,
-            onPressed: disabled ? null : onToggleAutoOk,
-            child: Text(isAutoOkEnabled ? 'AutoOk: On' : 'AutoOk'),
+          child: SizedBox(
+            height: 32,
+            child: isAutoOkEnabled
+                ? FilledButton(
+                    onPressed: disabled ? null : onToggleAutoOk,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    child: const Text('AutoOk: On', style: TextStyle(fontSize: 12)),
+                  )
+                : OutlinedButton(
+                    onPressed: disabled ? null : onToggleAutoOk,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    child: const Text('AutoOk', style: TextStyle(fontSize: 12)),
+                  ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
+        // Поле ввода
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
             color: colors.primaryContainer,
             borderRadius: BorderRadius.circular(4),
@@ -138,7 +239,8 @@ class TrainingInputMenu extends StatelessWidget {
                 ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
+        // Клавиатура
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -152,15 +254,19 @@ class TrainingInputMenu extends StatelessWidget {
           itemBuilder: (BuildContext context, int index) {
             if (index < keypadValues.length) {
               final int value = keypadValues[index];
-              return ElevatedButton(
-                style: compactButtonStyle,
+              return OutlinedButton(
+                style: btnStyle,
                 onPressed: disabled ? null : () => onValueSelected(value),
                 child: Text('$value'),
               );
             }
             if (index == keypadValues.length) {
-              return ElevatedButton(
-                style: compactButtonStyle,
+              return FilledButton(
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
                 onPressed: disabled
                     ? null
                     : () {
@@ -176,6 +282,51 @@ class TrainingInputMenu extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+// ===================================================================
+// ИНДИКАТОР РАУНДА / ПРОГРЕССА
+// ===================================================================
+
+class RoundIndicator extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const RoundIndicator({
+    super.key,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label: ',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

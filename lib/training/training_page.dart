@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../online/services/backend_service.dart';
 import './training_models.dart';
 import './training_widgets.dart';
 
 class TrainingPage extends StatefulWidget {
-  const TrainingPage({super.key});
+  final BackendService? backend;
+
+  const TrainingPage({super.key, this.backend});
+
   @override
   State<TrainingPage> createState() => _TrainingPageState();
 }
@@ -16,7 +20,26 @@ class _TrainingPageState extends State<TrainingPage> {
   @override
   void initState() {
     super.initState();
-    _state = TrainingState();
+    final defaultName = _resolvePlayer1Name();
+    _state = TrainingState(
+      player1: TrainingPlayerInfo(name: defaultName),
+    );
+  }
+
+  String _resolvePlayer1Name() {
+    try {
+      final backend = widget.backend;
+      if (backend != null && backend.isConnected) {
+        final userId = backend.currentUserId;
+        if (userId != null && userId.isNotEmpty) {
+          // Пытаемся получить displayName из сохранённого токена или из кэша
+          // В текущей реализации backend не хранит displayName напрямую,
+          // но мы можем использовать userId как имя
+          return userId;
+        }
+      }
+    } catch (_) {}
+    return 'Игрок1';
   }
 
   @override
@@ -44,7 +67,9 @@ class _TrainingPageState extends State<TrainingPage> {
   void _goToMenu() {
     _cancelAutoOkTimer();
     setState(() {
-      _state = TrainingState();
+      _state = TrainingState(
+        player1: TrainingPlayerInfo(name: _state.player1.name),
+      );
     });
   }
 
@@ -64,6 +89,26 @@ class _TrainingPageState extends State<TrainingPage> {
       _state = _state.copyWith(
         step: TrainingStep.process,
         pendingInputValue: null,
+        // Сброс состояния режима
+        sectorAttempts: [],
+        aroundTarget: 1,
+        aroundTotalScore: 0,
+        bob27Score: TrainingState.bob27StartScore,
+        bob27CurrentSector: 1,
+        shanghaiCurrentSector: 1,
+        shanghaiDartsInSector: 0,
+        shanghaiFinished: false,
+        currentPlayerIndex: 0,
+        player1: _state.player1.copyWith(
+          totalScore: 0,
+          totalHits: 0,
+          totalTurns: 0,
+        ),
+        player2: _state.player2.copyWith(
+          totalScore: 0,
+          totalHits: 0,
+          totalTurns: 0,
+        ),
       );
     });
   }
@@ -88,27 +133,184 @@ class _TrainingPageState extends State<TrainingPage> {
     final int? pendingValue = _state.pendingInputValue;
     if (_state.mode == null || pendingValue == null) return;
 
-    bool accepted = false;
     setState(() {
-      if (_state.mode == TrainingMode.sector) {
-        if (pendingValue < 0 ||
-            pendingValue > 9 ||
-            _state.sectorAttempts.length >= TrainingState.maxSectorAttempts) {
-          return;
-        }
-
-        final newAttempts = List<int>.from(_state.sectorAttempts)..add(pendingValue);
-        _state = _state.copyWith(
-          sectorAttempts: newAttempts,
-          pendingInputValue: null,
-        );
-        accepted = true;
+      switch (_state.mode) {
+        case TrainingMode.sector:
+          _processSector(pendingValue);
+          break;
+        case TrainingMode.aroundTheClock:
+          _processAroundTheClock(pendingValue);
+          break;
+        case TrainingMode.aroundTheClockClassic:
+          _processAroundTheClock(pendingValue);
+          break;
+        case TrainingMode.bob27:
+          _processBob27(pendingValue);
+          break;
+        case TrainingMode.shanghai:
+          _processShanghai(pendingValue);
+          break;
+        case null:
+          break;
       }
-      // Другие режимы будут добавлены позже
+      _state = _state.copyWith(pendingInputValue: null);
     });
 
-    if (accepted) {
-      _cancelAutoOkTimer();
+    _cancelAutoOkTimer();
+  }
+
+  // ===================================================================
+  // ЛОГИКА РЕЖИМОВ
+  // ===================================================================
+
+  void _processSector(int value) {
+    if (value < 0 || value > 9 ||
+        _state.sectorAttempts.length >= TrainingState.maxSectorAttempts) {
+      return;
+    }
+    final newAttempts = List<int>.from(_state.sectorAttempts)..add(value);
+    final isFinished = newAttempts.length >= TrainingState.maxSectorAttempts;
+
+    _state = _state.copyWith(sectorAttempts: newAttempts);
+
+    // Очки: value = количество попаданий (0-9)
+    _addScoreToCurrentPlayer(value);
+
+    if (isFinished) {
+      _switchOrFinish();
+    }
+  }
+
+  void _processAroundTheClock(int value) {
+    if (_state.isAroundFinished) return;
+
+    // value = количество попаданий (0-9)
+    // Для Around: засчитываем только если value > 0
+    if (value > 0) {
+      final sectorValue = _state.isBullTarget ? 25 : _state.aroundTarget;
+      final multiplier = _getAroundMultiplier();
+      final points = sectorValue * multiplier;
+      _addScoreToCurrentPlayer(points);
+      _state = _state.copyWith(
+        aroundTarget: _state.aroundTarget + 1,
+        aroundTotalScore: _state.aroundTotalScore + points,
+      );
+    } else {
+      // Промах — ход переходит
+      _state = _state.copyWith(aroundTarget: _state.aroundTarget + 1);
+    }
+
+    if (_state.isAroundFinished) {
+      _switchOrFinish();
+    }
+  }
+
+  int _getAroundMultiplier() {
+    if (_state.mode == TrainingMode.aroundTheClockClassic) return 1;
+    switch (_state.aroundDifficulty) {
+      case AroundDifficulty.single:
+        return 1;
+      case AroundDifficulty.double:
+        return 2;
+      case AroundDifficulty.triple:
+        return 3;
+    }
+  }
+
+  void _processBob27(int value) {
+    // value = количество попаданий (0-9)
+    // Bob27: +1 за Single, +2 за Double, +3 за Triple
+    // Но у нас value — это количество попаданий, а не номинал.
+    // Интерпретируем: value = 0 → промах, 1-3 = Single, 4-6 = Double, 7-9 = Triple
+    int points;
+    if (value == 0) {
+      points = 0;
+    } else if (value <= 3) {
+      points = value; // Single
+    } else if (value <= 6) {
+      points = (value - 3) * 2; // Double
+    } else {
+      points = (value - 6) * 3; // Triple
+    }
+
+    _state = _state.copyWith(
+      bob27Score: _state.bob27Score + points,
+      bob27CurrentSector: _state.bob27CurrentSector + 1,
+    );
+    _addScoreToCurrentPlayer(points);
+
+    if (_state.bob27CurrentSector > 20) {
+      _switchOrFinish();
+    }
+  }
+
+  void _processShanghai(int value) {
+    if (_state.shanghaiFinished) return;
+
+    // value = количество попаданий (0-9)
+    // Shanghai: 3 дротика в сектор, очки = номинал * попадания
+    final sectorValue = _state.shanghaiCurrentSector;
+    final points = sectorValue * value;
+    _addScoreToCurrentPlayer(points);
+
+    _state = _state.copyWith(
+      shanghaiDartsInSector: _state.shanghaiDartsInSector + 1,
+    );
+
+    // Проверка Shanghai (S+D+T за один подход — мгновенная победа)
+    if (value >= 6) {
+      // 6+ попаданий = как минимум Double+Triple или Single+Double+Triple
+      _state = _state.copyWith(shanghaiFinished: true);
+      _switchOrFinish();
+      return;
+    }
+
+    if (_state.shanghaiDartsInSector >= 3) {
+      _state = _state.copyWith(
+        shanghaiCurrentSector: _state.shanghaiCurrentSector + 1,
+        shanghaiDartsInSector: 0,
+      );
+      if (_state.shanghaiCurrentSector > TrainingState.shanghaiMaxSector) {
+        _switchOrFinish();
+      }
+    }
+  }
+
+  // ===================================================================
+  // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+  // ===================================================================
+
+  void _addScoreToCurrentPlayer(int points) {
+    final p = _state.currentPlayer;
+    final updated = p.copyWith(
+      totalScore: p.totalScore + points,
+      totalHits: p.totalHits + points,
+      totalTurns: p.totalTurns + 1,
+    );
+    if (_state.currentPlayerIndex == 0) {
+      _state = _state.copyWith(player1: updated);
+    } else {
+      _state = _state.copyWith(player2: updated);
+    }
+  }
+
+  void _switchOrFinish() {
+    if (_state.isPaired) {
+      _state.switchPlayer();
+      // Сброс состояния режима для следующего игрока
+      _state = _state.copyWith(
+        sectorAttempts: [],
+        aroundTarget: 1,
+        aroundTotalScore: 0,
+        bob27Score: TrainingState.bob27StartScore,
+        bob27CurrentSector: 1,
+        shanghaiCurrentSector: 1,
+        shanghaiDartsInSector: 0,
+        shanghaiFinished: false,
+      );
+    } else {
+      // Одиночный режим — возврат в меню
+      _goBackToSetup();
     }
   }
 
@@ -135,7 +337,23 @@ class _TrainingPageState extends State<TrainingPage> {
         sectorAttempts: [],
         aroundTarget: 1,
         aroundTotalScore: 0,
+        bob27Score: TrainingState.bob27StartScore,
+        bob27CurrentSector: 1,
+        shanghaiCurrentSector: 1,
+        shanghaiDartsInSector: 0,
+        shanghaiFinished: false,
         pendingInputValue: null,
+        player1: _state.player1.copyWith(
+          totalScore: 0,
+          totalHits: 0,
+          totalTurns: 0,
+        ),
+        player2: _state.player2.copyWith(
+          totalScore: 0,
+          totalHits: 0,
+          totalTurns: 0,
+        ),
+        currentPlayerIndex: 0,
       );
     });
   }
@@ -151,6 +369,10 @@ class _TrainingPageState extends State<TrainingPage> {
     }
   }
 
+  // ===================================================================
+  // BUILD — МЕНЮ
+  // ===================================================================
+
   Widget _buildModeMenu() {
     final theme = Theme.of(context);
     return Column(
@@ -161,26 +383,44 @@ class _TrainingPageState extends State<TrainingPage> {
         TrainingModeCard(
           icon: Icons.circle_outlined,
           title: 'Сектор',
-          description: 'Тренировка попадания в сектор',
+          description: '10 попыток попасть в выбранный сектор',
           onTap: () => _openSetup(TrainingMode.sector),
         ),
         const SizedBox(height: 8),
         TrainingModeCard(
           icon: Icons.timer_outlined,
           title: 'Around the Clock',
-          description: 'Проход по секторам с выбором сложности',
+          description: 'Проход по секторам 1→20→Bull с выбором сложности',
           onTap: () => _openSetup(TrainingMode.aroundTheClock),
         ),
         const SizedBox(height: 8),
         TrainingModeCard(
           icon: Icons.schedule,
           title: 'Around a Clock Classic',
-          description: 'Классический проход 1→20→Bull',
+          description: 'Классический проход 1→20→Bull (только Single)',
           onTap: () => _openSetup(TrainingMode.aroundTheClockClassic),
+        ),
+        const SizedBox(height: 8),
+        TrainingModeCard(
+          icon: Icons.exposure_plus_1_outlined,
+          title: 'Bob 27',
+          description: 'Начни с 27 очков, набирай на секторах 1→20',
+          onTap: () => _openSetup(TrainingMode.bob27),
+        ),
+        const SizedBox(height: 8),
+        TrainingModeCard(
+          icon: Icons.shuffle,
+          title: 'Shanghai',
+          description: '3 дротика в сектора 1→7. Shanghai = мгновенная победа',
+          onTap: () => _openSetup(TrainingMode.shanghai),
         ),
       ],
     );
   }
+
+  // ===================================================================
+  // BUILD — НАСТРОЙКИ
+  // ===================================================================
 
   Widget _buildSetupStep() {
     final theme = Theme.of(context);
@@ -202,65 +442,30 @@ class _TrainingPageState extends State<TrainingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              if (_state.mode == TrainingMode.sector) ...<Widget>[
-                Text('Режим: Сектор',
-                    style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                const Text('Выберите число:'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: <int>[20, 19, 18]
-                      .map(
-                        (int value) => _rectButton(
-                          label: '$value',
-                          selected: _state.selectedSector == value,
-                          onTap: () {
-                            setState(() {
-                              _state = _state.copyWith(selectedSector: value);
-                            });
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-              if (_state.mode == TrainingMode.aroundTheClock) ...<Widget>[
-                Text(
-                  'Режим: Around the Clock',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                const Text('Выберите сложность:'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: AroundDifficulty.values
-                      .map(
-                        (AroundDifficulty difficulty) => _rectButton(
-                          label: _difficultyLabel(difficulty),
-                          selected: _state.aroundDifficulty == difficulty,
-                          onTap: () {
-                            setState(() {
-                              _state = _state.copyWith(aroundDifficulty: difficulty);
-                            });
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-              if (_state.mode == TrainingMode.aroundTheClockClassic) ...<Widget>[
-                Text(
-                  'Режим: Around a Clock Classic',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Классический проход 1 -> 20 -> Bull без выбора сложности.',
-                ),
-              ],
+              // Название режима
+              Text(
+                _modeTitle(_state.mode!),
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+
+              // Параметры режима
+              if (_state.mode == TrainingMode.sector) ..._buildSectorSetup(),
+              if (_state.mode == TrainingMode.aroundTheClock)
+                ..._buildAroundSetup(),
+              if (_state.mode == TrainingMode.aroundTheClockClassic)
+                ..._buildAroundClassicSetup(),
+              if (_state.mode == TrainingMode.bob27) ..._buildBob27Setup(),
+              if (_state.mode == TrainingMode.shanghai) ..._buildShanghaiSetup(),
+
               const SizedBox(height: 16),
+
+              // Парный режим
+              _buildPairedToggle(),
+
+              const SizedBox(height: 16),
+
+              // Кнопки
               Row(
                 children: <Widget>[
                   OutlinedButton(
@@ -283,20 +488,163 @@ class _TrainingPageState extends State<TrainingPage> {
     );
   }
 
-  Widget _buildSectorProcess() {
+  String _modeTitle(TrainingMode mode) {
+    switch (mode) {
+      case TrainingMode.sector:
+        return 'Режим: Сектор';
+      case TrainingMode.aroundTheClock:
+        return 'Режим: Around the Clock';
+      case TrainingMode.aroundTheClockClassic:
+        return 'Режим: Around a Clock Classic';
+      case TrainingMode.bob27:
+        return 'Режим: Bob 27';
+      case TrainingMode.shanghai:
+        return 'Режим: Shanghai';
+    }
+  }
+
+  List<Widget> _buildSectorSetup() {
+    return [
+      const Text('Выберите сектор:'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        children: <int>[20, 19, 18, 17, 16, 15, 25]
+            .map(
+              (int value) => _rectButton(
+                label: value == 25 ? 'Bull' : '$value',
+                selected: _state.selectedSector == value,
+                onTap: () {
+                  setState(() {
+                    _state = _state.copyWith(selectedSector: value);
+                  });
+                },
+              ),
+            )
+            .toList(),
+      ),
+    ];
+  }
+
+  List<Widget> _buildAroundSetup() {
+    return [
+      const Text('Выберите сложность:'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        children: AroundDifficulty.values
+            .map(
+              (AroundDifficulty difficulty) => _rectButton(
+                label: _difficultyLabel(difficulty),
+                selected: _state.aroundDifficulty == difficulty,
+                onTap: () {
+                  setState(() {
+                    _state =
+                        _state.copyWith(aroundDifficulty: difficulty);
+                  });
+                },
+              ),
+            )
+            .toList(),
+      ),
+    ];
+  }
+
+  List<Widget> _buildAroundClassicSetup() {
+    return [
+      const Text('Классический проход 1 → 20 → Bull без выбора сложности.'),
+    ];
+  }
+
+  List<Widget> _buildBob27Setup() {
+    return [
+      const Text('Стартовые очки: 27'),
+      const SizedBox(height: 4),
+      const Text('Сектора: 1 → 20. Single = +1, Double = +2, Triple = +3.'),
+    ];
+  }
+
+  List<Widget> _buildShanghaiSetup() {
+    return [
+      const Text('Сектора: 1 → 7. 3 дротика в каждый.'),
+      const SizedBox(height: 4),
+      const Text(
+          'Shanghai (S+D+T одного сектора за подход) = мгновенная победа.'),
+    ];
+  }
+
+  Widget _buildPairedToggle() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('Парная тренировка'),
+              const Spacer(),
+              Switch(
+                value: _state.isPaired,
+                onChanged: (val) {
+                  setState(() {
+                    _state = _state.copyWith(isPaired: val);
+                  });
+                },
+              ),
+            ],
+          ),
+          if (_state.isPaired) ...[
+            const SizedBox(height: 8),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Имя второго игрока',
+                border: OutlineInputBorder(),
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              controller: TextEditingController(text: _state.player2.name),
+              onChanged: (val) {
+                setState(() {
+                  _state = _state.copyWith(
+                    player2: _state.player2.copyWith(
+                      name: val.isEmpty ? 'Игрок2' : val,
+                    ),
+                  );
+                });
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===================================================================
+  // BUILD — ПРОЦЕСС (универсальный)
+  // ===================================================================
+
+  Widget _buildProcess() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final bool isFinished = _state.sectorAttempts.length == TrainingState.maxSectorAttempts;
-    final int totalScore =
-        _state.sectorAttempts.fold<int>(0, (int sum, int v) => sum + v);
-    final int maxScore = TrainingState.maxSectorAttempts * 9;
-    final double accuracy = maxScore == 0 ? 0 : (totalScore / maxScore) * 100;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text('Процесс: Сектор', style: theme.textTheme.titleLarge),
+        // Панель игроков
+        TrainingPlayerBar(
+          player1: _state.player1,
+          player2: _state.player2,
+          currentPlayerIndex: _state.currentPlayerIndex,
+          isPaired: _state.isPaired,
+        ),
         const SizedBox(height: 8),
+
+        // Информация о режиме
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -307,16 +655,20 @@ class _TrainingPageState extends State<TrainingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Цель: сектор ${_state.selectedSector}'),
+              // Заголовок режима
               Text(
-                'Раунд ${(_state.sectorAttempts.length + 1).clamp(1, TrainingState.maxSectorAttempts)} '
-                'из ${TrainingState.maxSectorAttempts}',
+                _modeTitle(_state.mode!),
+                style: theme.textTheme.titleMedium,
               ),
-              Text('Текущий результат: $totalScore'),
-              const SizedBox(height: 6),
-              if (!isFinished) ...<Widget>[
-                const Text('Выберите результат за подход (0..9):'),
-                const SizedBox(height: 4),
+              const SizedBox(height: 8),
+
+              // Специфичная информация
+              ..._buildModeProcessInfo(),
+
+              const SizedBox(height: 12),
+
+              // Панель ввода
+              if (!_isModeFinished()) ...[
                 TrainingInputMenu(
                   maxValue: 9,
                   disabled: false,
@@ -327,14 +679,14 @@ class _TrainingPageState extends State<TrainingPage> {
                   onToggleAutoOk: _toggleAutoOk,
                 ),
               ],
-              if (isFinished) ...<Widget>[
-                Text(
-                  'Результат: $totalScore из $maxScore очков '
-                  '(${accuracy.toStringAsFixed(1)}%)',
-                  style: theme.textTheme.titleMedium,
-                ),
+
+              if (_isModeFinished()) ...[
+                _buildResultBlock(),
               ],
-              const SizedBox(height: 8),
+
+              const SizedBox(height: 12),
+
+              // Кнопки управления
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -358,15 +710,119 @@ class _TrainingPageState extends State<TrainingPage> {
     );
   }
 
+  bool _isModeFinished() {
+    switch (_state.mode) {
+      case TrainingMode.sector:
+        return _state.sectorAttempts.length >= TrainingState.maxSectorAttempts;
+      case TrainingMode.aroundTheClock:
+      case TrainingMode.aroundTheClockClassic:
+        return _state.isAroundFinished;
+      case TrainingMode.bob27:
+        return _state.bob27CurrentSector > 20;
+      case TrainingMode.shanghai:
+        return _state.shanghaiFinished ||
+            _state.shanghaiCurrentSector > TrainingState.shanghaiMaxSector;
+      case null:
+        return true;
+    }
+  }
+
+  List<Widget> _buildModeProcessInfo() {
+    switch (_state.mode) {
+      case TrainingMode.sector:
+        return [
+          Text('Цель: сектор ${_state.selectedSector}'),
+          const SizedBox(height: 4),
+          Text(
+            'Раунд ${(_state.sectorAttempts.length + 1).clamp(1, TrainingState.maxSectorAttempts)} '
+            'из ${TrainingState.maxSectorAttempts}',
+          ),
+          const SizedBox(height: 4),
+          Text('Текущий результат: ${_state.currentPlayer.totalScore}'),
+        ];
+      case TrainingMode.aroundTheClock:
+      case TrainingMode.aroundTheClockClassic:
+        final target = _state.isBullTarget ? 'Bull' : '${_state.aroundTarget}';
+        return [
+          Text('Текущая цель: $target'),
+          const SizedBox(height: 4),
+          Text('Очки: ${_state.currentPlayer.totalScore}'),
+        ];
+      case TrainingMode.bob27:
+        return [
+          Text('Текущий сектор: ${_state.bob27CurrentSector}'),
+          const SizedBox(height: 4),
+          Text('Очки: ${_state.currentPlayer.totalScore}'),
+        ];
+      case TrainingMode.shanghai:
+        return [
+          Text('Текущий сектор: ${_state.shanghaiCurrentSector}'),
+          const SizedBox(height: 4),
+          Text('Дротик ${_state.shanghaiDartsInSector + 1} из 3'),
+          const SizedBox(height: 4),
+          Text('Очки: ${_state.currentPlayer.totalScore}'),
+        ];
+      case null:
+        return [];
+    }
+  }
+
+  Widget _buildResultBlock() {
+    final theme = Theme.of(context);
+    final p = _state.currentPlayer;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.shade900.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.green.shade600),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Результат',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: Colors.green.shade300,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${p.name}: ${p.totalScore} очков',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (_state.isPaired) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${_state.player1.name}: ${_state.player1.totalScore} — '
+              '${_state.player2.name}: ${_state.player2.totalScore}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ===================================================================
+  // BUILD — ДИСПЕТЧЕР
+  // ===================================================================
+
   Widget _buildCurrentStep() {
     if (_state.step == TrainingStep.menu) return _buildModeMenu();
     if (_state.step == TrainingStep.setup) return _buildSetupStep();
-    if (_state.mode == TrainingMode.sector) return _buildSectorProcess();
-    // TODO: Добавить другие режимы
-    return const SizedBox.shrink();
+    return _buildProcess();
   }
 
-  /// Прямоугольная кнопка-переключатель (замена ChoiceChip)
+  // ===================================================================
+  // СТИЛИ КНОПОК
+  // ===================================================================
+
   Widget _rectButton({
     required String label,
     required bool selected,
