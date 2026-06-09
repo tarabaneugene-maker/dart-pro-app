@@ -315,36 +315,25 @@ class TrainingInputMenu extends StatelessWidget {
               );
             }
             if (index == keypadValues.length) {
-              return OutlinedButton(
-                style: btnStyle,
-                onPressed: disabled ? null : () => onValueSelected(0),
-                child: const Text('0'),
+              return FilledButton(
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                onPressed: disabled
+                    ? null
+                    : () {
+                        if (pendingInputValue == null) {
+                          onValueSelected(0);
+                        }
+                        onConfirm();
+                      },
+                child: const Text('Ок / 0'),
               );
             }
             return const SizedBox();
           },
-        ),
-        const SizedBox(height: 6),
-        // Кнопка ОК на всю ширину
-        SizedBox(
-          width: double.infinity,
-          height: 44,
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            onPressed: disabled
-                ? null
-                : () {
-                    if (pendingInputValue == null) {
-                      onValueSelected(0);
-                    }
-                    onConfirm();
-                  },
-            child: const Text('ОК', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
         ),
         const SizedBox(height: 6),
         // Кнопки "Вернуть ход" и "Стереть"
