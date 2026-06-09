@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../online/services/backend_service.dart';
+import '../widgets/settings_page.dart';
 import './training_models.dart';
 import './training_widgets.dart';
 
@@ -27,19 +28,27 @@ class _TrainingPageState extends State<TrainingPage> {
   }
 
   String _resolvePlayer1Name() {
-    try {
-      final backend = widget.backend;
-      if (backend != null && backend.isConnected) {
-        final userId = backend.currentUserId;
-        if (userId != null && userId.isNotEmpty) {
-          // Пытаемся получить displayName из сохранённого токена или из кэша
-          // В текущей реализации backend не хранит displayName напрямую,
-          // но мы можем использовать userId как имя
-          return userId;
-        }
-      }
-    } catch (_) {}
+    // Пытаемся загрузить отображаемое имя из настроек
+    // (синхронно не получится, поэтому используем fallback)
     return 'Игрок1';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadDisplayName();
+  }
+
+  Future<void> _loadDisplayName() async {
+    final name = await loadDisplayName();
+    if (!mounted) return;
+    if (name.isNotEmpty && _state.player1.name != name) {
+      setState(() {
+        _state = _state.copyWith(
+          player1: _state.player1.copyWith(name: name),
+        );
+      });
+    }
   }
 
   @override
@@ -69,6 +78,8 @@ class _TrainingPageState extends State<TrainingPage> {
     setState(() {
       _state = TrainingState(
         player1: TrainingPlayerInfo(name: _state.player1.name),
+        player1Finished: false,
+        player2Finished: false,
       );
     });
   }
@@ -79,6 +90,8 @@ class _TrainingPageState extends State<TrainingPage> {
       _state = _state.copyWith(
         step: TrainingStep.setup,
         pendingInputValue: null,
+        player1Finished: false,
+        player2Finished: false,
       );
     });
   }
@@ -99,6 +112,8 @@ class _TrainingPageState extends State<TrainingPage> {
         shanghaiDartsInSector: 0,
         shanghaiFinished: false,
         currentPlayerIndex: 0,
+        player1Finished: false,
+        player2Finished: false,
         player1: _state.player1.copyWith(
           totalScore: 0,
           totalHits: 0,
@@ -133,6 +148,8 @@ class _TrainingPageState extends State<TrainingPage> {
     final int? pendingValue = _state.pendingInputValue;
     if (_state.mode == null || pendingValue == null) return;
 
+    // Сохраняем ссылку на старый pendingInputValue перед вызовом _process*
+    // _process* методы сами обновляют _state через setState
     setState(() {
       switch (_state.mode) {
         case TrainingMode.sector:
@@ -153,7 +170,12 @@ class _TrainingPageState extends State<TrainingPage> {
         case null:
           break;
       }
-      _state = _state.copyWith(pendingInputValue: null);
+      // Сбрасываем pendingInputValue (не перезаписывая изменения из _process*)
+      // Важно: сохраняем step, который мог быть изменён в _switchOrFinish()
+      _state = _state.copyWith(
+        pendingInputValue: null,
+        step: _state.step,
+      );
     });
 
     _cancelAutoOkTimer();
@@ -178,6 +200,9 @@ class _TrainingPageState extends State<TrainingPage> {
 
     if (isFinished) {
       _switchOrFinish();
+    } else if (_state.isPaired) {
+      // В парном режиме — переключаем игрока после каждого подхода
+      _switchOrFinish();
     }
   }
 
@@ -201,6 +226,9 @@ class _TrainingPageState extends State<TrainingPage> {
     }
 
     if (_state.isAroundFinished) {
+      _switchOrFinish();
+    } else if (_state.isPaired) {
+      // В парном режиме — переключаем игрока после каждого подхода
       _switchOrFinish();
     }
   }
@@ -241,6 +269,9 @@ class _TrainingPageState extends State<TrainingPage> {
 
     if (_state.bob27CurrentSector > 20) {
       _switchOrFinish();
+    } else if (_state.isPaired) {
+      // В парном режиме — переключаем игрока после каждого подхода
+      _switchOrFinish();
     }
   }
 
@@ -272,7 +303,13 @@ class _TrainingPageState extends State<TrainingPage> {
       );
       if (_state.shanghaiCurrentSector > TrainingState.shanghaiMaxSector) {
         _switchOrFinish();
+      } else if (_state.isPaired) {
+        // В парном режиме — переключаем игрока после каждого сектора (3 дротика)
+        _switchOrFinish();
       }
+    } else if (_state.isPaired) {
+      // В парном режиме — переключаем игрока после каждого дротика
+      _switchOrFinish();
     }
   }
 
@@ -294,24 +331,67 @@ class _TrainingPageState extends State<TrainingPage> {
     }
   }
 
-  void _switchOrFinish() {
-    if (_state.isPaired) {
-      _state.switchPlayer();
-      // Сброс состояния режима для следующего игрока
-      _state = _state.copyWith(
-        sectorAttempts: [],
-        aroundTarget: 1,
-        aroundTotalScore: 0,
-        bob27Score: TrainingState.bob27StartScore,
-        bob27CurrentSector: 1,
-        shanghaiCurrentSector: 1,
-        shanghaiDartsInSector: 0,
-        shanghaiFinished: false,
-      );
-    } else {
-      // Одиночный режим — возврат в меню
-      _goBackToSetup();
+  /// Возвращает максимальное количество подходов для текущего режима
+  int _maxTurnsForMode() {
+    switch (_state.mode) {
+      case TrainingMode.sector:
+        return TrainingState.maxSectorAttempts;
+      case TrainingMode.aroundTheClock:
+      case TrainingMode.aroundTheClockClassic:
+        return 21; // 1-20 + Bull
+      case TrainingMode.bob27:
+        return 20; // сектора 1-20
+      case TrainingMode.shanghai:
+        return TrainingState.shanghaiMaxSector * 3; // 7 секторов * 3 дротика
+      case null:
+        return 0;
     }
+  }
+
+  void _switchOrFinish() {
+    if (!_state.isPaired) {
+      // Одиночный режим — возврат в меню (через флаг, без вложенного setState)
+      _state = _state.copyWith(
+        step: TrainingStep.setup,
+        pendingInputValue: null,
+        player1Finished: false,
+        player2Finished: false,
+      );
+      return;
+    }
+
+    // Парный режим: отмечаем текущего игрока как завершившего подход
+    final maxTurns = _maxTurnsForMode();
+    final currentPlayer = _state.currentPlayer;
+    final isPlayerDone = currentPlayer.totalTurns >= maxTurns;
+
+    if (_state.currentPlayerIndex == 0) {
+      _state = _state.copyWith(player1Finished: isPlayerDone);
+    } else {
+      _state = _state.copyWith(player2Finished: isPlayerDone);
+    }
+
+    // Проверяем, завершили ли оба игрока
+    final bothDone = _state.player1Finished && _state.player2Finished;
+    if (bothDone) {
+      // Оба завершили — показываем результат
+      return; // _isModeFinished() вернёт true, покажется _buildResultBlock()
+    }
+
+    // Переключаем на другого игрока
+    _state.switchPlayer();
+
+    // Сброс состояния режима для следующего игрока
+    _state = _state.copyWith(
+      sectorAttempts: [],
+      aroundTarget: 1,
+      aroundTotalScore: 0,
+      bob27Score: TrainingState.bob27StartScore,
+      bob27CurrentSector: 1,
+      shanghaiCurrentSector: 1,
+      shanghaiDartsInSector: 0,
+      shanghaiFinished: false,
+    );
   }
 
   void _toggleAutoOk() {
@@ -354,6 +434,8 @@ class _TrainingPageState extends State<TrainingPage> {
           totalTurns: 0,
         ),
         currentPlayerIndex: 0,
+        player1Finished: false,
+        player2Finished: false,
       );
     });
   }
@@ -711,6 +793,11 @@ class _TrainingPageState extends State<TrainingPage> {
   }
 
   bool _isModeFinished() {
+    // В парном режиме — оба игрока должны завершить
+    if (_state.isPaired) {
+      return _state.player1Finished && _state.player2Finished;
+    }
+    // В одиночном — проверяем по состоянию режима
     switch (_state.mode) {
       case TrainingMode.sector:
         return _state.sectorAttempts.length >= TrainingState.maxSectorAttempts;
@@ -769,7 +856,6 @@ class _TrainingPageState extends State<TrainingPage> {
 
   Widget _buildResultBlock() {
     final theme = Theme.of(context);
-    final p = _state.currentPlayer;
 
     return Container(
       width: double.infinity,
@@ -788,19 +874,37 @@ class _TrainingPageState extends State<TrainingPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            '${p.name}: ${p.totalScore} очков',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
           if (_state.isPaired) ...[
+            Text(
+              '${_state.player1.name}: ${_state.player1.totalScore}',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
-              '${_state.player1.name}: ${_state.player1.totalScore} — '
               '${_state.player2.name}: ${_state.player2.totalScore}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _state.player1.totalScore > _state.player2.totalScore
+                  ? '${_state.player1.name} победил!'
+                  : _state.player2.totalScore > _state.player1.totalScore
+                      ? '${_state.player2.name} победил!'
+                      : 'Ничья!',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.amber.shade300,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ] else ...[
+            Text(
+              '${_state.player1.name}: ${_state.player1.totalScore} очков',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],

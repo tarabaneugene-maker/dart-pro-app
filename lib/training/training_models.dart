@@ -60,6 +60,8 @@ class TrainingState {
   int currentPlayerIndex; // 0 = P1, 1 = P2
   TrainingPlayerInfo player1;
   TrainingPlayerInfo player2;
+  bool player1Finished; // true когда P1 завершил все подходы
+  bool player2Finished; // true когда P2 завершил все подходы
 
   // Сектор
   final List<int> sectorAttempts;
@@ -96,6 +98,8 @@ class TrainingState {
     this.shanghaiCurrentSector = 1,
     this.shanghaiDartsInSector = 0,
     this.shanghaiFinished = false,
+    this.player1Finished = false,
+    this.player2Finished = false,
   })  : sectorAttempts = sectorAttempts ?? [],
         player1 = player1 ?? const TrainingPlayerInfo(name: 'Игрок1'),
         player2 = player2 ?? const TrainingPlayerInfo(name: 'Игрок2');
@@ -129,6 +133,8 @@ class TrainingState {
     int? shanghaiCurrentSector,
     int? shanghaiDartsInSector,
     bool? shanghaiFinished,
+    bool? player1Finished,
+    bool? player2Finished,
   }) {
     return TrainingState(
       step: step ?? this.step,
@@ -150,6 +156,8 @@ class TrainingState {
           shanghaiCurrentSector ?? this.shanghaiCurrentSector,
       shanghaiDartsInSector: shanghaiDartsInSector ?? this.shanghaiDartsInSector,
       shanghaiFinished: shanghaiFinished ?? this.shanghaiFinished,
+      player1Finished: player1Finished ?? this.player1Finished,
+      player2Finished: player2Finished ?? this.player2Finished,
     );
   }
 }
