@@ -494,13 +494,97 @@ class _CricketGamePageState extends State<CricketGamePage> {
   }
 
   void _showLegWon(int winnerIndex) {
+    final player = _players[winnerIndex];
+    // Для ботов — сразу 3 дротика, без диалога
+    if (player.isBot) {
+      _onDartsConfirmed(winnerIndex, 3);
+      return;
+    }
+    // Для человека — диалог выбора дротиков
+    _showDartsDialogForWin(winnerIndex);
+  }
+
+  /// Минимальное количество дротиков для набора хитов в текущем подходе
+  int _minDartsForTurn() {
+    int total = 0;
+    for (final entry in _currentTurnHits.entries) {
+      final sector = entry.key;
+      final hits = entry.value;
+      final mult = _sectorMultiplier(sector);
+      total += (hits / mult).ceil();
+    }
+    return total;
+  }
+
+  /// Показать диалог выбора количества дротиков в победном подходе
+  void _showDartsDialogForWin(int winnerIndex) {
+    if (!mounted) return;
+    final player = _players[winnerIndex];
+    final minDarts = _minDartsForTurn();
+
+    // Если 3 разных сектора (minDarts == 3) — не спрашиваем
+    if (minDarts >= 3) {
+      _onDartsConfirmed(winnerIndex, 3);
+      return;
+    }
+
+    // Строим список вариантов от minDarts до 3
+    final options = <int>[];
+    for (int i = minDarts; i <= 3; i++) {
+      options.add(i);
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Сколько дротиков?'),
+        content: Text('${player.name} закрыл за:'),
+        actions: options.map((darts) {
+          return TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _onDartsConfirmed(winnerIndex, darts);
+            },
+            child: Text('$darts дротик${darts == 1 ? '' : (darts < 5 ? 'а' : 'ов')}'),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _onDartsConfirmed(int winnerIndex, int realDarts) {
+    final player = _players[winnerIndex];
+    final virtualDarts = _minDartsForTurn();
+
+    // Корректируем totalDarts: вычитаем виртуальные, прибавляем реальные
+    player.totalDarts = player.totalDarts - virtualDarts + realDarts;
+
+    // Увеличиваем счёт легов
+    player.legsWon++;
+
+    final legsRequired = (widget.settings.legs ~/ 2) + 1;
+    final setsRequired = (widget.settings.sets ~/ 2) + 1;
+
+    if (player.legsWon >= legsRequired) {
+      // Выиграл сет
+      player.setsWon++;
+      if (player.setsWon >= setsRequired) {
+        _showMatchWon(winnerIndex);
+        return;
+      }
+      _startNewSet();
+      return;
+    }
+
+    // Просто выиграл лег
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         title: const Text('Лег выигран!'),
-        content: Text('${_players[winnerIndex].name} выиграл лег'),
+        content: Text('${player.name} выиграл лег'),
         actions: [
           FilledButton(
             onPressed: () {
@@ -519,10 +603,50 @@ class _CricketGamePageState extends State<CricketGamePage> {
     );
   }
 
+  void _showMatchWon(int winnerIndex) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        title: const Text('Матч выигран!'),
+        content: Text('${_players[winnerIndex].name} выиграл матч!'),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: const Text('Закончить игру'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _startNewLeg() {
     setState(() {
       for (final p in _players) {
         p.resetForNewLeg();
+      }
+      _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
+      _previousPlayerIndex = -1;
+      _opponentSnapshot = null;
+      _resetTurnInput();
+    });
+    _triggerBotTurnIfNeeded();
+  }
+
+  void _startNewSet() {
+    setState(() {
+      for (final p in _players) {
+        p.resetForNewLeg();
+        p.legsWon = 0;
       }
       _currentPlayerIndex = (_currentPlayerIndex + 1) % _players.length;
       _previousPlayerIndex = -1;
