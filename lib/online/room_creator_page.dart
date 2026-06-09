@@ -28,13 +28,24 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
   String? _error;
   Timer? _createTimer;
 
-  // Настройки (как в офлайн GameSetupPage)
-  String _gameType = '501';
+  // Категория игры: 'x01' или 'cricket'
+  String _gameCategory = 'x01';
+  // Подтип внутри категории
+  String _gameSubtype = '501'; // для x01: '501'|'301'; для cricket: 'classic'|'american'
   int _sets = 1;
   int _legs = 3;
   String _startType = 'straightIn';
   String _finishType = 'doubleOut';
   bool _isPrivate = false;
+
+  bool get _isX01 => _gameCategory == 'x01';
+
+  String get _computedGameType {
+    if (_gameCategory == 'cricket') {
+      return 'cricket_$_gameSubtype';
+    }
+    return _gameSubtype; // '501' или '301'
+  }
 
   @override
   void initState() {
@@ -90,16 +101,19 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
     });
 
     try {
+      final params = <String, dynamic>{
+        'legs': _legs,
+        'sets': _sets,
+      };
+      if (_isX01) {
+        params['startType'] = _startType;
+        params['finishType'] = _finishType;
+      }
       await widget.backend.createRoom(
         widget.playerName,
         isPrivate: _isPrivate,
-        gameType: _gameType,
-        gameParams: {
-          'legs': _legs,
-          'sets': _sets,
-          'startType': _startType,
-          'finishType': _finishType,
-        },
+        gameType: _computedGameType,
+        gameParams: params,
       );
     } catch (e) {
       setState(() {
@@ -147,21 +161,47 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Первый дропдаун — категория игры
             DropdownButtonFormField<String>(
-              value: _gameType,
-
+              value: _gameCategory,
               decoration: const InputDecoration(
-                labelText: 'Тип игры',
+                labelText: 'Категория',
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: '501', child: Text('501')),
-                DropdownMenuItem(value: '301', child: Text('301')),
-                DropdownMenuItem(value: 'cricket_classic', child: Text('Cricket Classic')),
-                DropdownMenuItem(value: 'cricket_american', child: Text('Cricket American')),
+                DropdownMenuItem(value: 'x01', child: Text('X01')),
+                DropdownMenuItem(value: 'cricket', child: Text('Cricket')),
               ],
               onChanged: (v) {
-                if (v != null) setState(() => _gameType = v);
+                if (v != null) {
+                  setState(() {
+                    _gameCategory = v;
+                    // Сброс подтипа при смене категории
+                    _gameSubtype = v == 'cricket' ? 'classic' : '501';
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Второй дропдаун — подтип (зависит от категории)
+            DropdownButtonFormField<String>(
+              value: _gameSubtype,
+              decoration: const InputDecoration(
+                labelText: 'Вариант',
+                border: OutlineInputBorder(),
+              ),
+              items: _isX01
+                  ? const [
+                      DropdownMenuItem(value: '501', child: Text('501')),
+                      DropdownMenuItem(value: '301', child: Text('301')),
+                    ]
+                  : const [
+                      DropdownMenuItem(value: 'classic', child: Text('Classic')),
+                      DropdownMenuItem(value: 'american', child: Text('American')),
+                    ],
+              onChanged: (v) {
+                if (v != null) setState(() => _gameSubtype = v);
               },
             ),
             const SizedBox(height: 16),
@@ -204,62 +244,62 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
             ),
             const SizedBox(height: 16),
 
-            // Начало и Финиш в один ряд
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _startType,
-                    decoration: const InputDecoration(
-                      labelText: 'Начало',
-                      border: OutlineInputBorder(),
+            // Начало и Финиш — только для X01
+            if (_isX01)
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _startType,
+                      decoration: const InputDecoration(
+                        labelText: 'Начало',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'straightIn',
+                          child: Text('Straight In'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'doubleIn',
+                          child: Text('Double In'),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _startType = v);
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'straightIn',
-                        child: Text('Straight In'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'doubleIn',
-                        child: Text('Double In'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _startType = v);
-                    },
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _finishType,
-                    decoration: const InputDecoration(
-                      labelText: 'Финиш',
-                      border: OutlineInputBorder(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _finishType,
+                      decoration: const InputDecoration(
+                        labelText: 'Финиш',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'doubleOut',
+                          child: Text('Double Out'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'straightOut',
+                          child: Text('Straight Out'),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _finishType = v);
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'doubleOut',
-                        child: Text('Double Out'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'straightOut',
-                        child: Text('Straight Out'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _finishType = v);
-                    },
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+              ),
+            if (_isX01) const SizedBox(height: 16),
 
-            // Тип комнаты — Dropdown вместо Card
+            // Тип комнаты — Dropdown
             DropdownButtonFormField<bool>(
               value: _isPrivate,
-
               decoration: const InputDecoration(
                 labelText: 'Тип комнаты',
                 border: OutlineInputBorder(),
