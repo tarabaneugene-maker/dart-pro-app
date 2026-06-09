@@ -295,6 +295,9 @@ class GameServer {
       case 'throw':
         _handleThrow(ws, message);
         break;
+      case 'cricket_throw':
+        _handleCricketThrow(ws, message);
+        break;
       case 'ping':
         _handlePing(ws);
         break;
@@ -691,6 +694,42 @@ class GameServer {
 
 
     if (result['type'] == 'match_won') {
+      _saveMatchResult(room);
+    }
+
+    _broadcastToRoom(room, result);
+  }
+
+  void _handleCricketThrow(WebSocketChannel ws, Map<String, dynamic> message) {
+    final userId = _clientUsers[ws];
+    if (userId == null) {
+      _send(ws, {'type': 'error', 'message': 'Не авторизован'});
+      return;
+    }
+
+    final sectorHitsRaw = message['sectorHits'] as Map<String, dynamic>?;
+    if (sectorHitsRaw == null) {
+      _send(ws, {'type': 'error', 'message': 'Не указаны хиты по секторам'});
+      return;
+    }
+
+    // Преобразуем ключи из String в int
+    final sectorHits = sectorHitsRaw.map((k, v) => MapEntry(int.parse(k), v as int));
+
+    final room = _rooms.getPlayerRoom(userId);
+    final legsToWin = (room?.gameParams?['legs'] as int?) ?? 3;
+    final result = _rooms.processCricketThrow(userId, sectorHits, legsToWin);
+
+    if (result == null) {
+      _send(ws, {'type': 'error', 'message': 'Неверный ход'});
+      return;
+    }
+
+    if (room == null) return;
+
+    result['turnDeadline'] = room.turnStartTime!.millisecondsSinceEpoch + 120000;
+
+    if (result['type'] == 'cricket_match_won') {
       _saveMatchResult(room);
     }
 

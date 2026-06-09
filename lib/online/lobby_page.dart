@@ -6,6 +6,7 @@ import 'auth/login_page.dart';
 import 'room_detail_page.dart';
 import 'room_creator_page.dart';
 import 'online_game_page_501.dart';
+import 'online_cricket_game_page.dart';
 import 'profile/profile_page.dart';
 import '../main.dart';
 
@@ -76,17 +77,32 @@ class _LobbyPageState extends State<LobbyPage> {
         break;
       case GameStartedEvent e:
         // Игра началась (например, после join_by_code для приватной комнаты)
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => OnlineGamePage501(
-              backend: widget.backend,
-              roomState: e.room,
-              playerName: widget.displayName,
-              userId: widget.backend.currentUserId,
-              initialTurnDeadline: e.turnDeadline,
+        final isCricket = e.room.gameType == 'cricket_classic' || e.room.gameType == 'cricket_american';
+        if (isCricket) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineCricketGamePage(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.displayName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineGamePage501(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.displayName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
+            ),
+          );
+        }
         break;
 
       case JoinRequestedEvent e:
@@ -99,17 +115,32 @@ class _LobbyPageState extends State<LobbyPage> {
         break;
       case GameResumeEvent e:
         // Есть активная игра — переходим в неё
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => OnlineGamePage501(
-              backend: widget.backend,
-              roomState: e.room,
-              playerName: widget.displayName,
-              userId: widget.backend.currentUserId,
-              initialTurnDeadline: e.turnDeadline,
+        final isCricket = e.room.gameType == 'cricket_classic' || e.room.gameType == 'cricket_american';
+        if (isCricket) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineCricketGamePage(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.displayName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineGamePage501(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.displayName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
+            ),
+          );
+        }
         break;
 
 

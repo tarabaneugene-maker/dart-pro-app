@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
 import 'online_game_page_501.dart';
+import 'online_cricket_game_page.dart';
 
 /// Страница просмотра комнаты (для Игрока2)
 /// При нажатии на комнату в лобби — "проваливаемся" сюда.
@@ -59,17 +60,32 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
         );
         if (isMyGame) {
           // Мы в игре — переходим
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => OnlineGamePage501(
-                backend: widget.backend,
-                roomState: e.room,
-                playerName: widget.playerName,
-                userId: widget.backend.currentUserId,
-                initialTurnDeadline: e.turnDeadline,
+          final isCricket = e.room.gameType == 'cricket_classic' || e.room.gameType == 'cricket_american';
+          if (isCricket) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => OnlineCricketGamePage(
+                  backend: widget.backend,
+                  roomState: e.room,
+                  playerName: widget.playerName,
+                  userId: widget.backend.currentUserId,
+                  initialTurnDeadline: e.turnDeadline,
+                ),
               ),
-            ),
-          );
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => OnlineGamePage501(
+                  backend: widget.backend,
+                  roomState: e.room,
+                  playerName: widget.playerName,
+                  userId: widget.backend.currentUserId,
+                  initialTurnDeadline: e.turnDeadline,
+                ),
+              ),
+            );
+          }
         } else {
           // Игра началась без нас — показываем диалог и возвращаемся в лобби
           _showGameStartedWithoutUs();

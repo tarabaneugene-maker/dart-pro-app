@@ -44,7 +44,7 @@ server/lib/
 - **Онлайн: reconnect-диалог** — не показывает форфейт, если соперник вернулся
 - **Онлайн: per-dart режим ввода** — переключение сумма/по-дротику через ⚙️
 - **Онлайн: turn timeout** — turnDeadline (абсолютный timestamp), таймер на клиенте, диалог форфейта
-- **Cricket**: Classic/American, сектора 20→Bull, полоски (stripes) вместо маркеров / X ■, Triple/Double/OK, h/t колонка (хиты за подход), лимит 3 сектора за подход (ceil(hits/mult)), розовый фон для чужих закрытых секторов, подсчёт очков (American), totalPoints bar, проверка победы, last approach, avg h/t, AppBar с условиями
+- **Cricket**: Classic/American, сектора 20→Bull, полоски (stripes) вместо маркеров / X ■, Triple/Double/OK, h/t колонка (хиты за подход), лимит 3 сектора за подход (ceil(hits/mult)), розовый фон для чужих закрытых секторов, подсчёт очков (American), totalPoints bar, проверка победы, last approach, avg h/t, AppBar с условиями, сеты/леги (legsWon/setsWon), диалог дротиков в победном подходе, match-won dialog, боты (5 уровней)
 - **Тренировки**: Сектор (счётчик попаданий), Around the Clock (выбор Single/Double/Triple), Classic 1→20→Bull
 - **Сервер**: SQLite WAL, rate limit (30/10s), graceful shutdown, health check, Docker multi-stage
 - **Деплой**: VPS + Docker + Caddy (HTTPS авто), скрипт setup.sh, deploy_vps.ps1
@@ -58,9 +58,7 @@ server/lib/
 | **Онлайн: state reconciliation** | — | Reconnect не синхронизирует состояние игры |
 | **Онлайн: per-dart на сервере** | — | Сервер хранит только сумму — соперник не видит отдельные дротики |
 | **Онлайн: Double Out проверка** | — | На сервере нет проверки double out |
-| **Cricket: боты** | — | Нет ботов для Cricket |
-| **Cricket: онлайн** | — | Только локальная игра |
-| **Cricket: сеты/леги** | `lib/game/cricket_game_page.dart` | Не реализованы — только леги (нет увеличения legsWon/setsWon) |
+| **Cricket: онлайн** | — | Только локальная игра (онлайн не реализован) |
 | **Checkouts 41–59** | `lib/data/checkouts.dart` | Только 60–170 |
 | **Статистика / Настройки** | `lib/widgets/stub_page.dart` | Заглушка |
 | **Баг: вылезающие броски 501** | `lib/game/game_board_widget.dart` | Last dart results перекрывают счёт |

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'services/backend_service.dart';
 import 'services/websocket_backend.dart';
 import 'online_game_page_501.dart';
+import 'online_cricket_game_page.dart';
 
 /// Страница создания комнаты — выбор настроек + создание на сервере
 class RoomCreatorPage extends StatefulWidget {
@@ -156,6 +157,8 @@ class _RoomCreatorPageState extends State<RoomCreatorPage> {
               items: const [
                 DropdownMenuItem(value: '501', child: Text('501')),
                 DropdownMenuItem(value: '301', child: Text('301')),
+                DropdownMenuItem(value: 'cricket_classic', child: Text('Cricket Classic')),
+                DropdownMenuItem(value: 'cricket_american', child: Text('Cricket American')),
               ],
               onChanged: (v) {
                 if (v != null) setState(() => _gameType = v);
@@ -390,17 +393,32 @@ class _WaitingRoomPageState extends State<_WaitingRoomPage> {
         }
         break;
       case GameStartedEvent e:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => OnlineGamePage501(
-              backend: widget.backend,
-              roomState: e.room,
-              playerName: widget.playerName,
-              userId: widget.backend.currentUserId,
-              initialTurnDeadline: e.turnDeadline,
+        final isCricket = e.room.gameType == 'cricket_classic' || e.room.gameType == 'cricket_american';
+        if (isCricket) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineCricketGamePage(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.playerName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => OnlineGamePage501(
+                backend: widget.backend,
+                roomState: e.room,
+                playerName: widget.playerName,
+                userId: widget.backend.currentUserId,
+                initialTurnDeadline: e.turnDeadline,
+              ),
+            ),
+          );
+        }
         break;
 
       case ErrorEvent e:

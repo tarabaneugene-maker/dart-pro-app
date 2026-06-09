@@ -218,6 +218,70 @@ class MatchWonEvent extends ServerEvent {
   MatchWonEvent({required this.winnerIndex, required this.scores});
 }
 
+// ===================================================================
+// Cricket events
+// ===================================================================
+
+class CricketThrowResultEvent extends ServerEvent {
+  final int playerIndex;
+  final Map<int, int> sectorHits;
+  final int currentPlayerIndex;
+  final List<Map<int, int>> cricketHits;
+  final List<Map<int, int>> cricketPoints;
+  final List<int> cricketTotalPoints;
+  final List<int?> lastApproach;
+  final List<int> dartsInLeg;
+  final int turnDeadline;
+
+  CricketThrowResultEvent({
+    required this.playerIndex,
+    required this.sectorHits,
+    required this.currentPlayerIndex,
+    required this.cricketHits,
+    required this.cricketPoints,
+    required this.cricketTotalPoints,
+    required this.lastApproach,
+    required this.dartsInLeg,
+    this.turnDeadline = 0,
+  });
+}
+
+class CricketLegWonEvent extends ServerEvent {
+  final int winnerIndex;
+  final int currentPlayerIndex;
+  final List<int> scores;
+  final List<Map<int, int>> cricketHits;
+  final List<Map<int, int>> cricketPoints;
+  final List<int> cricketTotalPoints;
+  final int turnDeadline;
+
+  CricketLegWonEvent({
+    required this.winnerIndex,
+    required this.currentPlayerIndex,
+    required this.scores,
+    required this.cricketHits,
+    required this.cricketPoints,
+    required this.cricketTotalPoints,
+    this.turnDeadline = 0,
+  });
+}
+
+class CricketMatchWonEvent extends ServerEvent {
+  final int winnerIndex;
+  final List<int> scores;
+  final List<Map<int, int>> cricketHits;
+  final List<Map<int, int>> cricketPoints;
+  final List<int> cricketTotalPoints;
+
+  CricketMatchWonEvent({
+    required this.winnerIndex,
+    required this.scores,
+    required this.cricketHits,
+    required this.cricketPoints,
+    required this.cricketTotalPoints,
+  });
+}
+
 class TurnTimeoutEvent extends ServerEvent {
   final int turnDeadline;
   TurnTimeoutEvent({this.turnDeadline = 0});

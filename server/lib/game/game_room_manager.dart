@@ -169,7 +169,184 @@ class GameRoomManager {
     return _roomsById[roomId];
   }
 
-  /// Обработать ход игрока
+  /// Инициализировать Cricket-состояние для комнаты
+  void _initCricketState(Room room) {
+    final isAmerican = room.gameType == 'cricket_american';
+    room.cricketVariant = isAmerican ? 'american' : 'classic';
+    room.cricketHits = [
+      <int, int>{},
+      <int, int>{},
+    ];
+    room.cricketPoints = [
+      <int, int>{},
+      <int, int>{},
+    ];
+    room.cricketTotalPoints = [0, 0];
+  }
+
+  /// Обработать ход в Cricket
+  /// [sectorHits] — Map<сектор, количество_хитов> за подход
+  Map<String, dynamic>? processCricketThrow(
+      String userId, Map<int, int> sectorHits, int legsToWin) {
+    final room = getPlayerRoom(userId);
+    if (room == null) return null;
+    if (room.status != RoomStatus.playing) return null;
+
+    final playerIndex = room.players.indexWhere((p) => p.userId == userId);
+    if (playerIndex != room.currentPlayerIndex) return null;
+
+    // Инициализируем Cricket-состояние если нужно
+    if (room.cricketHits.isEmpty) {
+      _initCricketState(room);
+    }
+
+    final opponentIndex = playerIndex == 0 ? 1 : 0;
+    final isAmerican = room.cricketVariant == 'american';
+
+    // Валидация: не больше 3 дротиков
+    final totalHits = sectorHits.values.fold<int>(0, (a, b) => a + b);
+    if (totalHits > 3) return null;
+
+    // Обновляем хиты и очки
+    for (final entry in sectorHits.entries) {
+      final sector = entry.key;
+      final hits = entry.value;
+
+      // Пропускаем некорректные сектора
+      if (sector < 15 && sector != 25) continue;
+      if (sector > 25) continue;
+
+      // Сколько уже хитов у игрока в этом секторе
+      final currentHits = room.cricketHits[playerIndex][sector] ?? 0;
+      final newHits = currentHits + hits;
+
+      // Сколько хитов у соперника
+      final opponentHits = room.cricketHits[opponentIndex][sector] ?? 0;
+
+      // Если сектор уже закрыт у обоих — хиты не идут
+      if (currentHits >= 3 && opponentHits >= 3) continue;
+
+      // Если сектор закрыт у игрока — лишние хиты не идут
+      if (currentHits >= 3) continue;
+
+      // Сколько нужно до закрытия
+      final needed = 3 - currentHits;
+      final actualHits = hits.clamp(0, needed);
+
+      // Обновляем хиты
+      room.cricketHits[playerIndex][sector] = currentHits + actualHits;
+
+      // Если сектор закрыт у соперника, а у нас нет — очки не начисляются
+      // Если сектор закрыт у нас — лишние хиты не идут (уже обработано выше)
+      // Если сектор не закрыт у соперника — excess хиты идут в очки (American)
+      if (isAmerican && opponentHits >= 3 && currentHits < 3) {
+        // Сектор закрыт соперником, у нас нет — excess не даёт очков
+        // (только до закрытия)
+      } else if (isAmerican && currentHits + actualHits >= 3) {
+        // Excess хиты после закрытия — в очки
+        final excess = hits - actualHits;
+        if (excess > 0) {
+          final points = excess * _sectorValue(sector);
+          room.cricketPoints[playerIndex][sector] =
+              (room.cricketPoints[playerIndex][sector] ?? 0) + points;
+          room.cricketTotalPoints[playerIndex] += points;
+        }
+      }
+    }
+
+    room.lastApproach[playerIndex] = totalHits;
+    room.dartsInLeg[playerIndex] += 3;
+    room.turnStartTime = DateTime.now();
+
+    // Проверка победы
+    final winnerIndex = _checkCricketWin(room);
+    if (winnerIndex != null) {
+      room.legsWon[winnerIndex]++;
+
+      if (room.legsWon[winnerIndex] >= legsToWin) {
+        room.status = RoomStatus.finished;
+        room.finishedAt = DateTime.now();
+        return {
+          'type': 'cricket_match_won',
+          'winnerIndex': winnerIndex,
+          'scores': room.legsWon,
+          'cricketHits': room.cricketHits,
+          'cricketPoints': room.cricketPoints,
+          'cricketTotalPoints': room.cricketTotalPoints,
+        };
+      }
+
+      // Новый лег — сброс Cricket-состояния
+      for (int i = 0; i < room.players.length; i++) {
+        room.cricketHits[i] = <int, int>{};
+        room.cricketPoints[i] = <int, int>{};
+        room.cricketTotalPoints[i] = 0;
+        room.dartsInLeg[i] = 0;
+        room.lastApproach[i] = null;
+      }
+      room.currentPlayerIndex = (winnerIndex + 1) % room.players.length;
+
+      return {
+        'type': 'cricket_leg_won',
+        'winnerIndex': winnerIndex,
+        'currentPlayerIndex': room.currentPlayerIndex,
+        'scores': room.legsWon,
+        'cricketHits': room.cricketHits,
+        'cricketPoints': room.cricketPoints,
+        'cricketTotalPoints': room.cricketTotalPoints,
+      };
+    }
+
+    room.currentPlayerIndex = (playerIndex + 1) % room.players.length;
+
+    return {
+      'type': 'cricket_throw_result',
+      'playerIndex': playerIndex,
+      'sectorHits': sectorHits,
+      'currentPlayerIndex': room.currentPlayerIndex,
+      'cricketHits': room.cricketHits,
+      'cricketPoints': room.cricketPoints,
+      'cricketTotalPoints': room.cricketTotalPoints,
+      'lastApproach': room.lastApproach,
+      'dartsInLeg': room.dartsInLeg,
+    };
+  }
+
+  /// Проверить, есть ли победитель в Cricket
+  int? _checkCricketWin(Room room) {
+    final isAmerican = room.cricketVariant == 'american';
+    const sectors = [15, 16, 17, 18, 19, 20, 25];
+
+    for (int p = 0; p < room.players.length; p++) {
+      // Все сектора закрыты?
+      bool allClosed = true;
+      for (final s in sectors) {
+        if ((room.cricketHits[p][s] ?? 0) < 3) {
+          allClosed = false;
+          break;
+        }
+      }
+      if (!allClosed) continue;
+
+      // Для American — нужно ещё иметь points >= opponent
+      if (isAmerican) {
+        final opponent = p == 0 ? 1 : 0;
+        if (room.cricketTotalPoints[p] < room.cricketTotalPoints[opponent]) {
+          continue;
+        }
+      }
+
+      return p;
+    }
+    return null;
+  }
+
+  int _sectorValue(int sector) {
+    if (sector == 25) return 25;
+    return sector;
+  }
+
+  /// Обработать ход игрока (501)
   Map<String, dynamic>? processThrow(
       String userId, int score, int legsToWin,
       {int? dartsUsed}) {

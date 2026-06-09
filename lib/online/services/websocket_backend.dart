@@ -401,6 +401,17 @@ class WebSocketBackend implements BackendService {
     });
   }
 
+  /// Отправить ход в Cricket
+  Future<void> sendCricketThrow(Map<int, int> sectorHits) async {
+    await ensureConnected();
+    await waitForAuth();
+    // Преобразуем ключи в String для JSON
+    final raw = sectorHits.map((k, v) => MapEntry(k.toString(), v));
+    _send({
+      'type': 'cricket_throw',
+      'sectorHits': raw,
+    });
+  }
 
   @override
   Future<void> sendForfeitRequest() async {
@@ -612,6 +623,66 @@ class WebSocketBackend implements BackendService {
 
       case 'no_active_game':
         _eventController.add(NoActiveGameEvent());
+        break;
+
+      // =============================================================
+      // Cricket
+      // =============================================================
+      case 'cricket_throw_result':
+        _eventController.add(CricketThrowResultEvent(
+          playerIndex: message['playerIndex'] as int,
+          sectorHits: (message['sectorHits'] as Map<String, dynamic>)
+              .map((k, v) => MapEntry(int.parse(k), v as int)),
+          currentPlayerIndex: message['currentPlayerIndex'] as int,
+          cricketHits: (message['cricketHits'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketPoints: (message['cricketPoints'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketTotalPoints: (message['cricketTotalPoints'] as List).cast<int>(),
+          lastApproach: (message['lastApproach'] as List)
+              .map((e) => e as int?)
+              .toList(),
+          dartsInLeg: (message['dartsInLeg'] as List).cast<int>(),
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
+        ));
+        break;
+
+      case 'cricket_leg_won':
+        _eventController.add(CricketLegWonEvent(
+          winnerIndex: message['winnerIndex'] as int,
+          currentPlayerIndex: message['currentPlayerIndex'] as int,
+          scores: (message['scores'] as List).cast<int>(),
+          cricketHits: (message['cricketHits'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketPoints: (message['cricketPoints'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketTotalPoints: (message['cricketTotalPoints'] as List).cast<int>(),
+          turnDeadline: (message['turnDeadline'] as int?) ?? 0,
+        ));
+        break;
+
+      case 'cricket_match_won':
+        _eventController.add(CricketMatchWonEvent(
+          winnerIndex: message['winnerIndex'] as int,
+          scores: (message['scores'] as List).cast<int>(),
+          cricketHits: (message['cricketHits'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketPoints: (message['cricketPoints'] as List)
+              .map((e) => (e as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(int.parse(k), v as int)))
+              .toList(),
+          cricketTotalPoints: (message['cricketTotalPoints'] as List).cast<int>(),
+        ));
         break;
 
       case 'bust':

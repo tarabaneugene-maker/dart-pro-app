@@ -39,7 +39,7 @@ class Room {
   List<RoomPlayer> pendingPlayers = [];
 
 
-  // Игровое состояние
+  // Игровое состояние (501)
   int currentPlayerIndex = 0;
   List<int> scores = [501, 501];
   List<List<int>> legHistory = [[], []];
@@ -47,6 +47,12 @@ class Room {
   List<int> dartsInLeg = [0, 0];
   List<int?> lastApproach = [null, null];
   DateTime? turnStartTime; // когда начался текущий ход
+
+  // Игровое состояние (Cricket)
+  List<Map<int, int>> cricketHits = []; // per player: sector -> hits
+  List<Map<int, int>> cricketPoints = []; // per player: sector -> points
+  List<int> cricketTotalPoints = [0, 0];
+  String? cricketVariant; // 'classic', 'american'
 
   Room({
     required this.id,
@@ -93,6 +99,12 @@ class Room {
         'dartsInLeg': dartsInLeg,
         'lastApproach': lastApproach,
         'turnStartTime': turnStartTime?.toIso8601String(),
+        if (gameType == 'cricket' || gameType == 'cricket_american') ...{
+          'cricketHits': cricketHits,
+          'cricketPoints': cricketPoints,
+          'cricketTotalPoints': cricketTotalPoints,
+          'cricketVariant': cricketVariant,
+        },
       };
 
   /// Для лобби — только публичная информация
