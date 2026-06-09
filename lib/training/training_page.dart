@@ -117,7 +117,7 @@ class _TrainingPageState extends State<TrainingPage> {
   void _scheduleAutoOkIfNeeded() {
     _cancelAutoOkTimer();
     if (!_state.isAutoOkEnabled || _state.pendingInputValue == null) return;
-    _autoOkTimer = Timer(const Duration(seconds: 5), () {
+    _autoOkTimer = Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
       _confirmPendingInput();
     });
@@ -174,13 +174,14 @@ class _TrainingPageState extends State<TrainingPage> {
 
     _state = _state.copyWith(sectorAttempts: newAttempts);
 
-    // Очки: value = количество попаданий (0-9)
-    _addScoreToCurrentPlayer(value);
+    // Очки = номинал сектора × количество попаданий
+    final sectorValue = _state.selectedSector; // 20, 19, 18, 17, 16, 15, 25
+    final points = sectorValue * value;
+    _addScoreToCurrentPlayer(points, hits: value);
 
     if (isFinished) {
       _switchOrFinish();
     } else if (_state.isPaired) {
-      // В парном режиме — переключаем игрока после каждого подхода
       _switchOrFinish();
     }
   }
@@ -296,12 +297,15 @@ class _TrainingPageState extends State<TrainingPage> {
   // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
   // ===================================================================
 
-  void _addScoreToCurrentPlayer(int points) {
+  void _addScoreToCurrentPlayer(int points, {int hits = 0}) {
     final p = _state.currentPlayer;
+    // Сохраняем предыдущее среднее для расчёта динамики
+    final prevAvg = p.avgScore;
     final updated = p.copyWith(
       totalScore: p.totalScore + points,
-      totalHits: p.totalHits + points,
+      totalHits: p.totalHits + hits,
       totalTurns: p.totalTurns + 1,
+      previousAvgScore: prevAvg,
     );
     if (_state.currentPlayerIndex == 0) {
       _state = _state.copyWith(player1: updated);
@@ -373,6 +377,18 @@ class _TrainingPageState extends State<TrainingPage> {
     );
   }
 
+  void _undoLastTurn() {
+    // Пока не реализовано — заглушка
+    // В будущем: откат последнего подтверждённого хода
+  }
+
+  void _clearInput() {
+    setState(() {
+      _state = _state.copyWith(pendingInputValue: null);
+    });
+    _cancelAutoOkTimer();
+  }
+
   void _toggleAutoOk() {
     setState(() {
       _state = _state.copyWith(isAutoOkEnabled: !_state.isAutoOkEnabled);
@@ -417,6 +433,14 @@ class _TrainingPageState extends State<TrainingPage> {
         player2Finished: false,
       );
     });
+  }
+
+  int _inputMaxValue() {
+    // Для Bull (25) максимум 6 (double*3), для остальных секторов — 9
+    if (_state.mode == TrainingMode.sector && _state.selectedSector == 25) {
+      return 6;
+    }
+    return 9;
   }
 
   String _difficultyLabel(AroundDifficulty difficulty) {
@@ -731,13 +755,15 @@ class _TrainingPageState extends State<TrainingPage> {
               // Панель ввода
               if (!_isModeFinished()) ...[
                 TrainingInputMenu(
-                  maxValue: 9,
+                  maxValue: _inputMaxValue(),
                   disabled: false,
                   pendingInputValue: _state.pendingInputValue,
                   isAutoOkEnabled: _state.isAutoOkEnabled,
                   onValueSelected: _selectInputValue,
                   onConfirm: _confirmPendingInput,
                   onToggleAutoOk: _toggleAutoOk,
+                  onUndo: _undoLastTurn,
+                  onClear: _clearInput,
                 ),
               ],
 

@@ -21,25 +21,33 @@ class TrainingPlayerInfo {
   final int totalScore;
   final int totalHits;
   final int totalTurns;
+  /// Среднее за подход на предыдущем шаге (для расчёта динамики)
+  final double previousAvgScore;
 
   const TrainingPlayerInfo({
     required this.name,
     this.totalScore = 0,
     this.totalHits = 0,
     this.totalTurns = 0,
+    this.previousAvgScore = 0,
   });
+
+  double get avgScore =>
+      totalTurns > 0 ? totalScore / totalTurns : 0;
 
   TrainingPlayerInfo copyWith({
     String? name,
     int? totalScore,
     int? totalHits,
     int? totalTurns,
+    double? previousAvgScore,
   }) {
     return TrainingPlayerInfo(
       name: name ?? this.name,
       totalScore: totalScore ?? this.totalScore,
       totalHits: totalHits ?? this.totalHits,
       totalTurns: totalTurns ?? this.totalTurns,
+      previousAvgScore: previousAvgScore ?? this.previousAvgScore,
     );
   }
 }

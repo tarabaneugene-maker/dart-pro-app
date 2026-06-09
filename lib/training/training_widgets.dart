@@ -92,37 +92,43 @@ class TrainingPlayerBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(
+      child: Column(
         children: [
-          _playerCard(theme, player1, currentPlayerIndex == 0),
-          if (isPaired) ...[
-            const SizedBox(width: 8),
-            _playerCard(theme, player2, currentPlayerIndex == 1),
-          ],
+          Row(
+            children: [
+              _playerCard(theme, player1, currentPlayerIndex == 0),
+              if (isPaired) ...[
+                const SizedBox(width: 8),
+                _playerCard(theme, player2, currentPlayerIndex == 1),
+              ],
+            ],
+          ),
         ],
       ),
     );
   }
 
   Widget _playerCard(ThemeData theme, TrainingPlayerInfo p, bool isActive) {
+    final delta = p.totalTurns > 0
+        ? p.avgScore - p.previousAvgScore
+        : 0.0;
+
     return Expanded(
       child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isActive ? Colors.green.shade900 : Colors.grey.shade900,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Имя
             Text(
               p.name,
               style: theme.textTheme.titleSmall?.copyWith(
@@ -131,13 +137,45 @@ class TrainingPlayerBar extends StatelessWidget {
               ),
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
+            // Очки
             Text(
               'Очки: ${p.totalScore}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontSize: 11,
               ),
+            ),
+            // Хиты
+            Text(
+              'Хиты: ${p.totalHits}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+            // Среднее + динамика
+            Row(
+              children: [
+                Text(
+                  'Ср: ${p.avgScore.toStringAsFixed(1)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+                if (p.totalTurns > 1 && delta != 0) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    delta > 0 ? '(+${delta.toStringAsFixed(1)})' : '(${delta.toStringAsFixed(1)})',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: delta > 0 ? Colors.green.shade300 : Colors.red.shade300,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -158,6 +196,8 @@ class TrainingInputMenu extends StatelessWidget {
   final Function(int) onValueSelected;
   final VoidCallback onConfirm;
   final VoidCallback onToggleAutoOk;
+  final VoidCallback? onUndo;
+  final VoidCallback? onClear;
 
   const TrainingInputMenu({
     super.key,
@@ -168,11 +208,14 @@ class TrainingInputMenu extends StatelessWidget {
     required this.onValueSelected,
     required this.onConfirm,
     required this.onToggleAutoOk,
+    this.onUndo,
+    this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     final cappedMaxValue = maxValue.clamp(1, 9);
     final keypadValues =
         List<int>.generate(cappedMaxValue, (int index) => index + 1);
@@ -228,15 +271,26 @@ class TrainingInputMenu extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             border: Border.all(color: colors.primary, width: 1.5),
           ),
-          child: Text(
-            pendingInputValue == null
-                ? 'Набрано: -'
-                : 'Набрано: $pendingInputValue',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Текущий подход',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onPrimaryContainer.withValues(alpha: 0.7),
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                pendingInputValue == null ? '-' : '$pendingInputValue',
+                style: theme.textTheme.titleLarge?.copyWith(
                   color: colors.onPrimaryContainer,
                   fontWeight: FontWeight.w800,
                   fontSize: 20,
                 ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 6),
@@ -261,25 +315,69 @@ class TrainingInputMenu extends StatelessWidget {
               );
             }
             if (index == keypadValues.length) {
-              return FilledButton(
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                onPressed: disabled
-                    ? null
-                    : () {
-                        if (pendingInputValue == null) {
-                          onValueSelected(0);
-                        }
-                        onConfirm();
-                      },
-                child: const Text('Ок / 0'),
+              return OutlinedButton(
+                style: btnStyle,
+                onPressed: disabled ? null : () => onValueSelected(0),
+                child: const Text('0'),
               );
             }
             return const SizedBox();
           },
+        ),
+        const SizedBox(height: 6),
+        // Кнопка ОК на всю ширину
+        SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            onPressed: disabled
+                ? null
+                : () {
+                    if (pendingInputValue == null) {
+                      onValueSelected(0);
+                    }
+                    onConfirm();
+                  },
+            child: const Text('ОК', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Кнопки "Вернуть ход" и "Стереть"
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onPressed: disabled ? null : onUndo,
+                icon: const Icon(Icons.undo, size: 16),
+                label: const Text('Вернуть ход', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onPressed: disabled ? null : onClear,
+                icon: const Icon(Icons.backspace, size: 16),
+                label: const Text('Стереть', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
         ),
       ],
     );
