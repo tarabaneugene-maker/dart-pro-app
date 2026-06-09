@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../online/services/backend_service.dart';
-import '../widgets/settings_page.dart';
 import './training_models.dart';
 import './training_widgets.dart';
 
@@ -28,27 +27,7 @@ class _TrainingPageState extends State<TrainingPage> {
   }
 
   String _resolvePlayer1Name() {
-    // Пытаемся загрузить отображаемое имя из настроек
-    // (синхронно не получится, поэтому используем fallback)
     return 'Игрок1';
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _loadDisplayName();
-  }
-
-  Future<void> _loadDisplayName() async {
-    final name = await loadDisplayName();
-    if (!mounted) return;
-    if (name.isNotEmpty && _state.player1.name != name) {
-      setState(() {
-        _state = _state.copyWith(
-          player1: _state.player1.copyWith(name: name),
-        );
-      });
-    }
   }
 
   @override

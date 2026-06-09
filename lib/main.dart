@@ -17,6 +17,8 @@ import 'online/server_url.dart';
 
 // Виджеты
 import 'widgets/stub_page.dart';
+import 'widgets/settings_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,17 +64,26 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final WebSocketBackend _backend = WebSocketBackend();
   bool _backendConnected = false;
+  bool _displayNameMissing = false;
   StreamSubscription? _backendSub;
 
   @override
   void initState() {
     super.initState();
     _connectBackend();
+    _checkDisplayName();
     _backendSub = _backend.events.listen((event) {
       if (event is PongEvent || event is AuthOkEvent) {
         if (mounted) setState(() => _backendConnected = _backend.isConnected);
       }
     });
+  }
+
+  Future<void> _checkDisplayName() async {
+    final name = await loadDisplayName();
+    if (mounted) {
+      setState(() => _displayNameMissing = name.isEmpty);
+    }
   }
 
   @override
@@ -179,17 +190,35 @@ class _HomePageState extends State<HomePage> {
               _MenuTile(
                 icon: Icons.settings,
                 title: 'Настройки',
-                subtitle: 'Язык, звук, оформление',
-                onTap: () {
-                  Navigator.of(context).push(
+                subtitle: 'Отображаемое имя',
+                trailing: _displayNameMissing
+                    ? Container(
+                        width: 24,
+                        height: 24,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
+                onTap: () async {
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const StubPage(
-                        icon: Icons.settings,
-                        title: 'Настройки',
-                        description: 'Страница в разработке',
-                      ),
+                      builder: (_) => const SettingsPage(),
                     ),
                   );
+                  // После возврата из настроек — перепроверить имя
+                  _checkDisplayName();
                 },
               ),
             ],
