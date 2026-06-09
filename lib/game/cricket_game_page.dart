@@ -264,6 +264,16 @@ class _CricketGamePageState extends State<CricketGamePage> {
       hits = 1;
     }
 
+    // Если соперник закрыл сектор — максимум хитов = сколько не хватает до закрытия
+    final opponent = _players[(_currentPlayerIndex + 1) % _players.length];
+    if (opponent.isSectorClosed(sector)) {
+      final player = _players[_currentPlayerIndex];
+      final currentTotal = (player.hitsPerSector[sector] ?? 0) + (_currentTurnHits[sector] ?? 0);
+      final maxNeeded = (3 - currentTotal).clamp(0, 3);
+      if (hits > maxNeeded) hits = maxNeeded;
+      if (hits <= 0) return;
+    }
+
     if (_wouldExceedSectorLimit(sector, hits)) return;
 
     _currentTurnHits[sector] = (_currentTurnHits[sector] ?? 0) + hits;
@@ -386,6 +396,8 @@ class _CricketGamePageState extends State<CricketGamePage> {
       player.totalTurns++;
     } else {
       player.lastTurnSummary = '0';
+      player.totalTurns++;
+      player.totalDarts += 3;
     }
 
     // Сохраняем хиты подхода для отображения серым у неактивного игрока

@@ -498,15 +498,17 @@ class CricketBoardWidget extends StatelessWidget {
           // Нижняя строка: h/t (хиты текущего подхода — жёлтые, или предыдущего — серые)
           Expanded(
             child: Center(
-              child: turnHits > 0
-                  ? Text(
-                      '$turnHits',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    )
+              child: isActive
+                  ? (turnHits > 0
+                      ? Text(
+                          '$turnHits',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        )
+                      : null)
                   : (lastHits > 0
                       ? Text(
                           '$lastHits',
