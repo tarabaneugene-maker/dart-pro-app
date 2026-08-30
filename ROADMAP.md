@@ -45,7 +45,6 @@ server/lib/
 - **Онлайн: per-dart режим ввода** — переключение сумма/по-дротику через ⚙️
 - **Онлайн: turn timeout** — turnDeadline (абсолютный timestamp), таймер на клиенте, диалог форфейта
 - **Cricket**: Classic/American, сектора 20→Bull, полоски (stripes) вместо маркеров / X ■, Triple/Double/OK, h/t колонка (хиты за подход), лимит 3 сектора за подход (ceil(hits/mult)), розовый фон для чужих закрытых секторов, подсчёт очков (American), totalPoints bar, проверка победы, last approach, avg h/t, AppBar с условиями, сеты/леги (legsWon/setsWon), диалог дротиков в победном подходе, match-won dialog, боты (5 уровней)
-- **Тренировки**: Сектор (счётчик попаданий), Around the Clock (выбор Single/Double/Triple), Classic 1→20→Bull
 - **Сервер**: SQLite WAL, rate limit (30/10s), graceful shutdown, health check, Docker multi-stage
 - **Деплой**: VPS + Docker + Caddy (HTTPS авто), скрипт setup.sh, deploy_vps.ps1
 

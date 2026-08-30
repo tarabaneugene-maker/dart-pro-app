@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Локальный мусор / временные копии (не коммитим)
+/wc_predict/
+/worldcup_predict_backup/
+/worldcup_predict_temp/
+/worldcup_predict_tmp/
+/deploy_key_nopass
+/deploy_key
+/deploy_key.pub

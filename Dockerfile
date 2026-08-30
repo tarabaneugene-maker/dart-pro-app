@@ -61,8 +61,8 @@ COPY --from=server-build /app/dart_pro_server ./dart_pro_server
 # Копируем собранный Flutter Web
 COPY --from=flutter-build /app/build/web ./build/web
 
-# Порт сервера
-EXPOSE 8080
+# Порт сервера (реально используется 9090, т.к. 8080 занят другим проектом)
+EXPOSE 9090
 
 # Volume для персистентной базы данных
 VOLUME ["/app/data"]
@@ -70,9 +70,9 @@ VOLUME ["/app/data"]
 # Переменные окружения
 ENV DB_PATH=/app/data/dart_pro.db
 
-# Health check
+# Health check (сервер слушает PORT=9090)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD curl -f http://localhost:9090/health || exit 1
 
 # Запускаем сервер (он сам раздаёт статику из ../build/web)
 CMD ["./dart_pro_server"]
